@@ -115,7 +115,7 @@ export async function executeFlow(
   });
 
   // Find the trigger node (entry point)
-  const triggerNode = nodes.find((n) => n.type === "trigger");
+  const triggerNodes = nodes.filter((n) => n.type === "trigger"); const trigField = (n: FlowNode, k: "triggerType" | "payload") => (n.data as unknown as Record<string, string | undefined>)?.[k]; const inc = context.incomingMessage; const triggerNode = (inc.postbackPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "postback" && trigField(n, "payload") === inc.postbackPayload) : undefined) ?? (inc.quickReplyPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "quick_reply" && trigField(n, "payload") === inc.quickReplyPayload) : undefined) ?? triggerNodes.find((n) => !["postback", "quick_reply"].includes(trigField(n, "triggerType") ?? "keyword")) ?? triggerNodes[0];
   if (!triggerNode) return;
 
   // Get the first connected node
