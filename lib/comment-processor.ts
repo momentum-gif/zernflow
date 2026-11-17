@@ -182,7 +182,7 @@ export async function processComment({
             path: { postId: comment.postId },
             body: {
               accountId: channel.late_account_id,
-              message: config.replyText,
+              message: (() => { const o = config.replyText.split("||").map((s) => s.trim()).filter(Boolean); return o[Math.floor(Math.random() * o.length)] ?? config.replyText; })(),
               commentId: comment.id,
             },
           });
