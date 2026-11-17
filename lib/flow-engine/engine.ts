@@ -396,7 +396,7 @@ async function sendFirstMessageAsPrivateReply(
         postId: String(context.variables!.post_id),
         commentId: String(context.variables!.comment_id),
       },
-      body: { accountId: lateAccountId, message: text },
+      body: { accountId: lateAccountId, message: text, ...(() => { const a = adaptMessage(first, context.platform ?? "instagram"); if (a.buttons?.length) return { buttons: a.buttons }; if (a.quickReplies?.length) return { quickReplies: a.quickReplies }; return {}; })() } as Parameters<typeof zernio.comments.sendPrivateReplyToComment>[0]["body"],
     });
 
     await supabase.from("messages").insert({
