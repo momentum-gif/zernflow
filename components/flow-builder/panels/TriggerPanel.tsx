@@ -229,7 +229,7 @@ export function TriggerPanel({ data: rawData, onChange }: TriggerPanelProps) {
         </div>
       )}
 
-      {/* Payload Section */}
+      {triggerType === "comment_keyword" && (<div><label className="mb-2 block text-xs font-semibold text-foreground">Public reply to the comment (optional)</label><input type="text" value={typeof data.replyText === "string" ? data.replyText : ""} onChange={(e) => onChange({ ...data, replyText: e.target.value })} placeholder="Ej: Te lo mandé por DM, revisa tus solicitudes de mensajes" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /><p className="mt-1.5 text-xs text-muted-foreground">Se publica como respuesta pública debajo del comentario, antes de enviar el DM.</p></div>)} {/* Payload Section */}
       {showPayload && (
         <div>
           <label className="mb-2 block text-xs font-semibold text-foreground">
