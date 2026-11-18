@@ -121,7 +121,20 @@ export async function executeFlow(
     .select("config")
     .eq("id", context.triggerId)
     .maybeSingle();
-  const firedNodeId = (firedTrigger?.config as { nodeId?: string } | null)?.nodeId;
+  const firedConfig = firedTrigger?.config as { nodeId?: string; startHandle?: string } | null;
+  const firedNodeId = firedConfig?.nodeId;
+
+  // A ManyChat-style button connected straight to a step: continue from it.
+  if (firedNodeId && firedConfig?.startHandle) {
+    const buttonEdge = edges.find(
+      (e) => e.source === firedNodeId && e.sourceHandle === firedConfig.startHandle
+    );
+    const buttonTarget = buttonEdge && nodes.find((n) => n.id === buttonEdge.target);
+    if (buttonTarget) {
+      await traverseNodes(supabase, session.id, buttonTarget, nodes, edges, context, 0);
+      return;
+    }
+  }
   const triggerNodes = nodes.filter((n) => n.type === "trigger"); const trigField = (n: FlowNode, k: "triggerType" | "payload") => (n.data as unknown as Record<string, string | undefined>)?.[k]; const inc = context.incomingMessage; const triggerNode = (firedNodeId ? triggerNodes.find((n) => n.id === firedNodeId) : undefined) ?? (inc.postbackPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "postback" && trigField(n, "payload") === inc.postbackPayload) : undefined) ?? (inc.quickReplyPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "quick_reply" && trigField(n, "payload") === inc.quickReplyPayload) : undefined) ?? (inc.text ? triggerNodes.find((n) => trigField(n, "triggerType") === "keyword" && (((n.data as unknown as { keywords?: Array<string | { value: string; matchType?: string }> }).keywords) ?? []).some((kw) => { const v = (typeof kw === "string" ? kw : kw.value).toLowerCase(); const m = typeof kw === "string" ? "contains" : (kw.matchType ?? "contains"); const t = inc.text!.toLowerCase().trim(); return m === "exact" ? t === v : m === "startsWith" ? t.startsWith(v) : t.includes(v); })) : undefined) ?? triggerNodes.find((n) => !["postback", "quick_reply"].includes(trigField(n, "triggerType") ?? "keyword")) ?? triggerNodes[0];
   if (!triggerNode) return;
 
@@ -225,7 +238,7 @@ export async function resumeSession(
   }
 
   // Get next node after the current one
-  const nextEdge = edges.find((e) => e.source === currentNode.id);
+  const nextEdge = edges.find((e) => e.source === currentNode.id && !e.sourceHandle?.startsWith("btn:"));
   if (!nextEdge) {
     await completeSession(supabase, session.id);
     return;
@@ -315,7 +328,8 @@ async function traverseNodes(
       (e) => e.source === node.id && e.sourceHandle === handle
     );
   } else {
-    nextEdge = edges.find((e) => e.source === node.id);
+    // Button connectors ("btn:<payload>") only run when that button is tapped.
+    nextEdge = edges.find((e) => e.source === node.id && !e.sourceHandle?.startsWith("btn:"));
   }
 
   if (!nextEdge) {

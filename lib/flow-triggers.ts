@@ -47,6 +47,51 @@ export interface DesiredTrigger {
 export function buildDesiredTriggers(
   flowNodes: Array<Record<string, unknown>>,
   flowId: string,
+  flowEdges: Array<Record<string, unknown>> = [],
+): DesiredTrigger[] {
+  return [...nodeTriggers(flowNodes, flowId), ...buttonTriggers(flowNodes, flowEdges, flowId)];
+}
+
+/**
+ * ManyChat-style buttons: a button or quick reply connected straight to a step
+ * (edge sourceHandle "btn:<payload>") becomes a postback / quick_reply row that
+ * starts the flow at that edge's target. No "Button Click" trigger node needed.
+ */
+function buttonTriggers(
+  flowNodes: Array<Record<string, unknown>>,
+  flowEdges: Array<Record<string, unknown>>,
+  flowId: string,
+): DesiredTrigger[] {
+  const rows: DesiredTrigger[] = [];
+  const seen = new Set<string>();
+  for (const e of flowEdges) {
+    const handle = typeof e?.sourceHandle === "string" ? e.sourceHandle : "";
+    if (!handle.startsWith("btn:")) continue;
+    const payload = handle.slice(4);
+    const source = flowNodes.find((n) => n?.id === e.source);
+    if (!payload || !source || seen.has(handle)) continue;
+    seen.add(handle);
+
+    const messages = (((source.data ?? {}) as Record<string, any>).messages ?? []) as Array<Record<string, any>>;
+    const isQuickReply = messages.some((m) =>
+      (m.quickReplies ?? []).some((q: { payload?: string }) => q.payload === payload),
+    );
+
+    rows.push({
+      flow_id: flowId,
+      channel_id: null,
+      type: (isQuickReply ? "quick_reply" : "postback") as TriggerType,
+      config: { payload, nodeId: source.id as string, startHandle: handle },
+      is_active: true,
+      priority: 0,
+    });
+  }
+  return rows;
+}
+
+function nodeTriggers(
+  flowNodes: Array<Record<string, unknown>>,
+  flowId: string,
 ): DesiredTrigger[] {
   return flowNodes
     .filter((n) => n?.type === "trigger")

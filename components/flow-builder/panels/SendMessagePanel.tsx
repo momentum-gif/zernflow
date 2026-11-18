@@ -4,6 +4,11 @@ import { useCallback, useRef } from "react";
 import { Plus, X, GripVertical, Image, Type, MousePointer, MessageCircle, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Hidden code that links a button to the step it is connected to (like ManyChat). */
+export function newButtonPayload() {
+  return `btn_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 interface QuickReply {
   title: string;
   payload: string;
@@ -206,7 +211,7 @@ function MessageEditor({
   // Quick replies
   const addQuickReply = useCallback(() => {
     const replies = message.quickReplies || [];
-    onChange({ ...message, quickReplies: [...replies, { title: "", payload: "" }] });
+    onChange({ ...message, quickReplies: [...replies, { title: "", payload: newButtonPayload() }] });
   }, [message, onChange]);
 
   const updateQuickReply = useCallback(
@@ -229,7 +234,7 @@ function MessageEditor({
   // Buttons
   const addButton = useCallback(() => {
     const buttons = message.buttons || [];
-    onChange({ ...message, buttons: [...buttons, { title: "", type: "postback", payload: "" }] });
+    onChange({ ...message, buttons: [...buttons, { title: "", type: "postback", payload: newButtonPayload() }] });
   }, [message, onChange]);
 
   const updateButton = useCallback(
@@ -468,7 +473,7 @@ function MessageEditor({
                         updateButton(i, {
                           ...btn,
                           type,
-                          payload: type === "postback" ? btn.payload || "" : undefined,
+                          payload: type === "postback" ? btn.payload || newButtonPayload() : undefined,
                           url: type === "url" ? btn.url || "" : undefined,
                         });
                       }}
@@ -594,7 +599,7 @@ function CarouselCardEditor({
     if (buttons.length >= 3) return;
     onChange({
       ...element,
-      buttons: [...buttons, { title: "", type: "postback", payload: "" }],
+      buttons: [...buttons, { title: "", type: "postback", payload: newButtonPayload() }],
     });
   }, [element, buttons, onChange]);
 
@@ -734,7 +739,7 @@ function CarouselCardEditor({
                       ...btn,
                       type,
                       payload:
-                        type === "postback" ? btn.payload || "" : undefined,
+                        type === "postback" ? btn.payload || newButtonPayload() : undefined,
                       url: type === "url" ? btn.url || "" : undefined,
                     });
                   }}

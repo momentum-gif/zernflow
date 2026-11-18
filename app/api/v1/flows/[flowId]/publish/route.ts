@@ -71,7 +71,8 @@ export async function POST(
   // "also match in DMs" emits a second row typed `keyword` (see below), so both rows
   // are reconciled together on every republish.
   const flowNodes = Array.isArray(flow.nodes) ? (flow.nodes as Array<Record<string, unknown>>) : [];
-  const desiredTriggers = buildDesiredTriggers(flowNodes, flowId);
+  const flowEdges = Array.isArray(flow.edges) ? (flow.edges as Array<Record<string, unknown>>) : [];
+  const desiredTriggers = buildDesiredTriggers(flowNodes, flowId, flowEdges);
 
   // Reconcile: clear the builder-managed trigger rows for this flow, then insert the
   // fresh set derived from the current node graph (delete-and-reinsert keeps the table
