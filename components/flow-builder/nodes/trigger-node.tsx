@@ -25,6 +25,7 @@ const triggerLabels: Record<string, string> = {
   tag_removed: "Se elimina una etiqueta",
   custom_field_changed: "Cambia un campo personalizado",
   system_field_changed: "Cambia el correo del contacto",
+  date_time: "Fecha/Hora de un campo",
   sequence_subscribed: "Entra a una secuencia",
   sequence_unsubscribed: "Sale de una secuencia",
   comment_keyword: "El usuario comenta tu publicación o Reel",

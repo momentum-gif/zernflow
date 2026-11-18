@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { FlowLoadError, resumeSession } from "@/lib/flow-engine/engine";
 import type { Json } from "@/lib/types/database";
+import { processDateTriggers } from "@/lib/date-triggers";
 
 // Signals the handler to skip retry/backoff and route straight to the
 // failed + settle branch (which performs/re-attempts the session cancel).
@@ -45,6 +46,13 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = await createServiceClient();
+
+  // "Fecha/Hora" automations (cheap when there are none).
+  try {
+    await processDateTriggers(supabase);
+  } catch (err) {
+    console.error("[cron] date triggers failed:", err);
+  }
 
   // Prune the webhook idempotency ledger; ids only matter for Zernio's retry
   // window (hours), so anything older than 48h is dead weight.

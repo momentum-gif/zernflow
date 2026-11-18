@@ -320,3 +320,91 @@ export function ContactEventPanel({
     </div>
   );
 }
+
+/* ------------------------------- Fecha / Hora ------------------------------- */
+
+export function DateTimeTriggerPanel({ data, onChange }: PanelProps) {
+  const set = (patch: Record<string, unknown>) => onChange({ ...data, ...patch });
+  const offset = Number(data.offsetDays ?? 0) || 0;
+  const when = offset === 0 ? "same" : offset < 0 ? "before" : "after";
+  const days = Math.abs(offset) || 1;
+
+  // Remember the creator's time zone so "09:00" means their 9 AM.
+  useEffect(() => {
+    if (!data.timezone) {
+      onChange({ ...data, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const inputClass =
+    "w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Se activa para cada contacto según una fecha guardada en uno de sus campos (por ejemplo, su cumpleaños o la
+        fecha de una cita). El campo debe tener la fecha como AAAA-MM-DD o DD/MM/AAAA.
+      </p>
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-foreground">Campo con la fecha (slug)</label>
+        <input
+          value={typeof data.fieldSlug === "string" ? data.fieldSlug : ""}
+          onChange={(e) => set({ fieldSlug: e.target.value })}
+          placeholder="ej: cumpleanos"
+          className={inputClass}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-foreground">Cuándo</label>
+          <select
+            value={when}
+            onChange={(e) =>
+              set({ offsetDays: e.target.value === "same" ? 0 : e.target.value === "before" ? -days : days })
+            }
+            className={inputClass}
+          >
+            <option value="same">El mismo día</option>
+            <option value="before">Días antes</option>
+            <option value="after">Días después</option>
+          </select>
+        </div>
+        {when !== "same" && (
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-foreground">Días</label>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={days}
+              onChange={(e) => {
+                const n = Math.max(1, Math.min(365, parseInt(e.target.value) || 1));
+                set({ offsetDays: when === "before" ? -n : n });
+              }}
+              className={inputClass}
+            />
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-foreground">Hora</label>
+          <input
+            type="time"
+            value={typeof data.time === "string" && data.time ? data.time : "09:00"}
+            onChange={(e) => set({ time: e.target.value })}
+            className={inputClass}
+          />
+        </div>
+        <label className="mt-6 flex items-center gap-2 text-sm text-foreground">
+          <input type="checkbox" checked={data.yearly === true} onChange={(e) => set({ yearly: e.target.checked })} />
+          Repetir cada año
+        </label>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Zona horaria: {typeof data.timezone === "string" ? data.timezone : "detectando…"}
+      </p>
+    </div>
+  );
+}

@@ -136,6 +136,29 @@ function nodeTriggers(
         ];
       }
 
+      if (nodeType === "date_time") {
+        const slug = typeof data.fieldSlug === "string" ? data.fieldSlug.trim() : "";
+        if (!slug) return [];
+        return [
+          {
+            flow_id: flowId,
+            channel_id: null,
+            type: "keyword" as TriggerType,
+            config: {
+              kind: "date_time",
+              nodeId: n.id,
+              fieldSlug: slug,
+              offsetDays: Number(data.offsetDays ?? 0) || 0,
+              time: typeof data.time === "string" && data.time ? data.time : "09:00",
+              timezone: typeof data.timezone === "string" && data.timezone ? data.timezone : "UTC",
+              yearly: data.yearly === true,
+            },
+            is_active: true,
+            priority: 0,
+          },
+        ];
+      }
+
       if ((CONTACT_EVENT_TYPES as readonly string[]).includes(nodeType)) {
         const c: Record<string, any> = { kind: "contact_event", event: nodeType, nodeId: n.id };
         if (typeof data.tagName === "string" && data.tagName.trim()) c.tagName = data.tagName.trim();

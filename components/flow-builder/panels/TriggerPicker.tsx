@@ -38,7 +38,7 @@ export const TRIGGER_OPTIONS: Record<Tab, TriggerOption[]> = {
     { value: "tag_removed", category: "Evento de contactos", title: "Se elimina la etiqueta de un contacto" },
     { value: "sequence_subscribed", category: "Evento de contactos", title: "Contacto suscrito a una secuencia" },
     { value: "sequence_unsubscribed", category: "Evento de contactos", title: "Contacto no suscrito a una secuencia" },
-    { value: "date_time", category: "Evento de contactos", title: "Fecha/Hora en que ocurrió", unavailable: "PRÓXIMAMENTE" },
+    { value: "date_time", category: "Evento de contactos", title: "Fecha/Hora en que ocurrió" },
   ],
   other: [
     { value: "postback", category: "Botón", title: "El usuario toca un botón" },

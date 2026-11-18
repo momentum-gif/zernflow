@@ -17,7 +17,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { useCallback, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Rocket, Loader2, History, Play, Download, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,7 @@ type Flow = Database["public"]["Tables"]["flows"]["Row"];
 
 import { NoteNode } from "./nodes/note-node";
 import { FlowStatsProvider } from "./flow-stats-context";
+import { PhonePreview } from "./phone-preview";
 
 const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
@@ -113,6 +114,24 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId) || null
     : null;
+
+  // ManyChat-style phone preview for message steps and the comment trigger.
+  const [previewHidden, setPreviewHidden] = useState(false);
+  const [igUsername, setIgUsername] = useState<string | undefined>();
+  useEffect(() => {
+    fetch("/api/v1/channels")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((channels: Array<{ platform: string; username: string | null; is_active: boolean }>) =>
+        setIgUsername(channels.find((c) => c.platform === "instagram" && c.is_active)?.username ?? undefined)
+      )
+      .catch(() => {});
+  }, []);
+  const showPreview =
+    !!selectedNode &&
+    !previewHidden &&
+    (selectedNode.type === "sendMessage" ||
+      (selectedNode.type === "trigger" &&
+        (selectedNode.data as { triggerType?: string }).triggerType === "comment_keyword"));
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -451,7 +470,17 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
       {/* Canvas area */}
       <div className="flex flex-1 overflow-hidden">
         <NodePalette />
-        <div ref={reactFlowWrapper} className="flex-1">
+        <div ref={reactFlowWrapper} className="relative flex-1">
+          {showPreview && selectedNode && (
+            <PhonePreview
+              key={selectedNode.id}
+              node={selectedNode}
+              nodes={nodes}
+              edges={edges}
+              username={igUsername}
+              onClose={() => setPreviewHidden(true)}
+            />
+          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}
