@@ -50,6 +50,15 @@ export function InboxView({
     }
   }
 
+  // "Iniciar Chat" from a contact profile opens /dashboard/inbox?c=<conversation id>.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("c");
+    if (!id) return;
+    const match = conversations.find((c) => c.id === id);
+    if (match) setSelected(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Keep selected conversation in sync when conversation list updates
   const handleSelect = useCallback((c: Conversation) => {
     setSelected(c);
