@@ -63,6 +63,8 @@ export function ActionPanel({ data: rawData, onChange }: ActionPanelProps) {
       return <SmartDelayConfig data={data} onChange={onChange} />;
     case "enrollSequence":
       return <EnrollSequencePanel data={rawData} onChange={onChange} />;
+    case "collectInput":
+      return <CollectInputConfig data={data} onChange={onChange} />;
     default:
       return (
         <p className="text-sm text-muted-foreground">
@@ -567,6 +569,74 @@ function SmartDelayConfig({ data, onChange }: ActionSubPanelProps) {
         <p className="mt-1.5 text-xs text-muted-foreground">
           If the user does not respond within this time, the flow will continue.
         </p>
+      </div>
+    </div>
+  );
+}
+
+/* ───────── Recopilación de datos (ManyChat "User Input") ───────── */
+function CollectInputConfig({ data, onChange }: ActionSubPanelProps) {
+  const d = data as unknown as Record<string, string | undefined>;
+  const set = (patch: Record<string, string>) => onChange({ ...data, ...patch });
+  const inputClass =
+    "w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-border bg-muted p-4">
+        <p className="text-sm font-medium text-foreground">Recopilación de datos</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Envía una pregunta y espera la respuesta de la persona. Si la respuesta no es válida, se lo vuelve a pedir.
+        </p>
+      </div>
+      <div>
+        <label className="mb-2 block text-xs font-semibold text-foreground">Pregunta</label>
+        <textarea
+          rows={3}
+          value={d.question ?? ""}
+          onChange={(e) => set({ question: e.target.value })}
+          placeholder="Ej: ¿A qué correo te envío la guía? 📩"
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label className="mb-2 block text-xs font-semibold text-foreground">Tipo de respuesta</label>
+        <select value={d.inputType ?? "text"} onChange={(e) => set({ inputType: e.target.value })} className={inputClass}>
+          <option value="text">Texto</option>
+          <option value="email">Correo electrónico</option>
+          <option value="phone">Teléfono</option>
+          <option value="number">Número</option>
+          <option value="url">Enlace (URL)</option>
+        </select>
+      </div>
+      <div>
+        <label className="mb-2 block text-xs font-semibold text-foreground">Guardar respuesta como variable</label>
+        <input
+          value={d.variableName ?? ""}
+          onChange={(e) => set({ variableName: e.target.value.replace(/[^\w]/g, "_") })}
+          placeholder="email"
+          className={inputClass}
+        />
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Luego puedes usarla en mensajes como {"{{"}{d.variableName || "email"}{"}}"}.
+        </p>
+      </div>
+      <div>
+        <label className="mb-2 block text-xs font-semibold text-foreground">Guardar también en el campo (opcional)</label>
+        <input
+          value={d.fieldSlug ?? ""}
+          onChange={(e) => set({ fieldSlug: e.target.value })}
+          placeholder="slug del campo personalizado"
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label className="mb-2 block text-xs font-semibold text-foreground">Mensaje si la respuesta no es válida</label>
+        <input
+          value={d.retryText ?? ""}
+          onChange={(e) => set({ retryText: e.target.value })}
+          placeholder="Ese correo no parece válido. ¿Me lo escribes de nuevo? 🙏"
+          className={inputClass}
+        />
       </div>
     </div>
   );

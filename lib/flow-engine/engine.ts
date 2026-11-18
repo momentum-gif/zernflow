@@ -38,6 +38,18 @@ export async function executeFlow(
     context.variables.message ??= context.incomingMessage.text;
   }
 
+  // Contact variables, like ManyChat's {first_name}: {{nombre}},
+  // {{nombre_completo}} and {{usuario}}.
+  const fullName =
+    context.incomingMessage.sender?.name || (context.variables.commenter_name as string | undefined);
+  if (fullName && !/^\d+$/.test(fullName)) {
+    context.variables.nombre_completo ??= fullName;
+    context.variables.nombre ??= fullName.trim().split(/\s+/)[0];
+  }
+  if (context.incomingMessage.sender?.username) {
+    context.variables.usuario ??= context.incomingMessage.sender.username;
+  }
+
   // Check for active session waiting for input
   const { data: activeSession } = await supabase
     .from("flow_sessions")
@@ -49,7 +61,16 @@ export async function executeFlow(
     .single();
 
   if (activeSession) {
-    return resumeSession(supabase, activeSession, context);
+    // Tapping a button starts what that button is connected to; it is not an
+    // answer to a pending question, so that wait is dropped.
+    if (context.incomingMessage.postbackPayload || context.incomingMessage.quickReplyPayload) {
+      await supabase
+        .from("flow_sessions")
+        .update({ status: "cancelled", waiting_for_input: false })
+        .eq("id", activeSession.id);
+    } else {
+      return resumeSession(supabase, activeSession, context);
+    }
   }
 
   // Load flow
@@ -237,6 +258,42 @@ export async function resumeSession(
     return;
   }
 
+  // "Recopilación de datos": validate and store the answer before moving on.
+  const currentActionType =
+    (currentNode.type as string) === "action"
+      ? (currentNode.data as unknown as { actionType?: string }).actionType
+      : currentNode.type;
+  if (currentActionType === "collectInput") {
+    const d = currentNode.data as unknown as CollectInputNodeData;
+    const answer = (context.incomingMessage.text ?? "").trim();
+    if (!isValidCollectedInput(d.inputType, answer)) {
+      const retry = d.retryText?.trim() || defaultRetryText(d.inputType);
+      await executeSendMessage(
+        supabase,
+        { messages: [{ text: retry }] } as unknown as SendMessageNodeData,
+        context
+      );
+      await supabase
+        .from("flow_sessions")
+        .update({ waiting_for_input: true })
+        .eq("id", session.id);
+      return;
+    }
+    const varName = (d.variableName?.trim() || "respuesta").replace(/[^\w]/g, "_");
+    context.variables ??= {};
+    context.variables[varName] = answer;
+    await supabase
+      .from("flow_sessions")
+      .update({ variables: context.variables as Json })
+      .eq("id", session.id);
+    if (d.fieldSlug) {
+      await executeSetField(supabase, { fieldSlug: d.fieldSlug, value: answer }, context);
+    }
+    if (d.inputType === "email") {
+      await supabase.from("contacts").update({ email: answer }).eq("id", context.contactId);
+    }
+  }
+
   // Get next node after the current one
   const nextEdge = edges.find((e) => e.source === currentNode.id && !e.sourceHandle?.startsWith("btn:"));
   if (!nextEdge) {
@@ -308,7 +365,9 @@ async function traverseNodes(
 
   // Persist variables written by output-producing nodes so they survive
   // pauses (resumeSession reloads them from the session row).
-  if (node.type === "aiResponse" || node.type === "httpRequest") {
+  const persistKind =
+    (node.type as string) === "action" ? (node.data as unknown as { actionType?: string }).actionType : node.type;
+  if (persistKind === "aiResponse" || persistKind === "httpRequest" || persistKind === "collectInput") {
     await supabase
       .from("flow_sessions")
       .update({ variables: (context.variables ?? {}) as Json })
@@ -353,7 +412,19 @@ async function executeNode(
   context: FlowExecutionContext,
   sessionId: string
 ): Promise<string | void> {
-  switch (node.type) {
+  // The builder stores actions as type "action" + data.actionType; map them to
+  // the engine's node kinds (and tag/subscribe to the fields their executors read).
+  const actionType =
+    (node.type as string) === "action" ? ((node.data as unknown as { actionType?: string }).actionType ?? "") : null;
+  const kind = actionType ?? node.type;
+  if (actionType) {
+    const extra: Record<string, string> = {};
+    if (actionType === "addTag") extra.action = "add";
+    if (actionType === "removeTag") extra.action = "remove";
+    if (actionType === "subscribe" || actionType === "unsubscribe") extra.action = actionType;
+    node = { ...node, data: { ...(node.data as object), ...extra } as FlowNode["data"] };
+  }
+  switch (kind) {
     case "sendMessage":
       return executeSendMessage(supabase, node.data as SendMessageNodeData, context);
     case "condition":
@@ -391,6 +462,22 @@ async function executeNode(
       return "pause";
     case "enrollSequence":
       return executeEnrollSequence(supabase, node.data as EnrollSequenceNodeData, context);
+    case "collectInput": {
+      // "Recopilación de datos": ask, then wait for the answer (see resumeSession).
+      const d = node.data as unknown as CollectInputNodeData;
+      if (d.question?.trim()) {
+        await executeSendMessage(
+          supabase,
+          { messages: [{ text: d.question }] } as unknown as SendMessageNodeData,
+          context
+        );
+      }
+      await supabase
+        .from("flow_sessions")
+        .update({ waiting_for_input: true, current_node_id: node.id })
+        .eq("id", sessionId);
+      return "pause";
+    }
     default:
       return;
   }
@@ -1108,4 +1195,43 @@ function interpolateVariables(
     if (value === null || value === undefined) return token;
     return typeof value === "object" ? JSON.stringify(value) : String(value);
   });
+}
+
+export interface CollectInputNodeData {
+  question?: string;
+  inputType?: "text" | "email" | "phone" | "number" | "url";
+  variableName?: string;
+  fieldSlug?: string;
+  retryText?: string;
+}
+
+function isValidCollectedInput(type: CollectInputNodeData["inputType"], value: string): boolean {
+  if (!value) return false;
+  switch (type) {
+    case "email":
+      return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
+    case "phone":
+      return /^\+?[\d\s().-]{7,20}$/.test(value);
+    case "number":
+      return /^-?\d+([.,]\d+)?$/.test(value);
+    case "url":
+      return /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(value);
+    default:
+      return true;
+  }
+}
+
+function defaultRetryText(type: CollectInputNodeData["inputType"]): string {
+  switch (type) {
+    case "email":
+      return "Ese correo no parece válido. ¿Me lo escribes de nuevo? 🙏";
+    case "phone":
+      return "Ese número no parece válido. ¿Me lo escribes de nuevo con el código de país?";
+    case "number":
+      return "Necesito un número. ¿Me lo escribes de nuevo?";
+    case "url":
+      return "Ese enlace no parece válido. ¿Me lo envías de nuevo?";
+    default:
+      return "No te entendí, ¿me lo escribes de nuevo?";
+  }
 }

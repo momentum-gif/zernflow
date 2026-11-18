@@ -38,6 +38,8 @@ import { TestPanel } from "./panels/TestPanel";
 
 type Flow = Database["public"]["Tables"]["flows"]["Row"];
 
+import { NoteNode } from "./nodes/note-node";
+
 const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
   sendMessage: SendMessageNode,
@@ -45,6 +47,7 @@ const nodeTypes: NodeTypes = {
   delay: DelayNode,
   action: ActionNode,
   aiResponse: AiResponseNode,
+  note: NoteNode,
 };
 
 interface FlowCanvasProps {
@@ -66,9 +69,14 @@ function getDefaultData(type: string, actionType?: string): Record<string, unkno
       return { conditions: [], logic: "and" };
     case "delay":
       return { duration: 5, unit: "minutes" };
+    case "note":
+      return { text: "" };
     case "aiResponse":
       return { systemPrompt: "", model: "openai/gpt-4o-mini", temperature: 0.7, maxTokens: 500, contextMessages: 10 };
     case "action":
+      if (actionType === "collectInput") {
+        return { actionType, question: "", inputType: "email", variableName: "email" };
+      }
       return { actionType: actionType || "addTag" };
     default:
       return {};
@@ -158,6 +166,8 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
+      // Notes are edited in place; they have no settings panel.
+      if (node.type === "note") return;
       setSelectedNodeId(node.id);
     },
     []

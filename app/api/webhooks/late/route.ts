@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { executeFlow } from "@/lib/flow-engine/engine";
+import { executeFlow, resumeSession } from "@/lib/flow-engine/engine";
 import { matchTrigger } from "@/lib/flow-engine/trigger-matcher";
 import { resolveWebhookSecret, verifyWebhookSignature } from "@/lib/zernio-webhook";
 import { upsertContactForSender } from "@/lib/inbox-sync";
@@ -303,7 +303,39 @@ async function processMessageEvent(
       msg.text || undefined
     );
 
-    if (!handled) {
+    // A flow waiting for a typed answer ("Recopilación de datos", smart delay)
+    // gets this message even when no trigger matches it.
+    let resumed = false;
+    if (!handled && !incomingMessage.postbackPayload && !incomingMessage.quickReplyPayload) {
+      const { data: waiting } = await supabase
+        .from("flow_sessions")
+        .select("*")
+        .eq("contact_id", contactId)
+        .eq("channel_id", channel.id)
+        .eq("status", "active")
+        .eq("waiting_for_input", true)
+        .maybeSingle();
+      if (waiting) {
+        resumed = true;
+        try {
+          await resumeSession(supabase, waiting, {
+            triggerId: "",
+            flowId: waiting.flow_id,
+            channelId: channel.id,
+            contactId,
+            conversationId: conversation.id,
+            workspaceId: channel.workspace_id,
+            incomingMessage,
+            lateConversationId: conv.id,
+            lateAccountId: account.id,
+          });
+        } catch (err) {
+          console.error("Flow resume error:", err);
+        }
+      }
+    }
+
+    if (!handled && !resumed) {
       const trigger = await matchTrigger(supabase, {
         channelId: channel.id,
         workspaceId: channel.workspace_id,

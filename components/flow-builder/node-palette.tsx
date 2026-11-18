@@ -15,6 +15,7 @@ import {
   Hourglass,
   Sparkles,
   ListOrdered,
+  StickyNote,
 } from "lucide-react";
 import type { DragEvent } from "react";
 
@@ -33,91 +34,98 @@ interface PaletteCategory {
 
 const categories: PaletteCategory[] = [
   {
-    name: "Triggers",
+    name: "Paso inicial",
     items: [
-      { type: "trigger", nodeType: "trigger", label: "Keyword Trigger", icon: Zap },
+      { type: "trigger", nodeType: "trigger", label: "Disparador", icon: Zap },
     ],
   },
   {
-    name: "Messages",
+    name: "Contenido",
     items: [
       {
         type: "sendMessage",
         nodeType: "sendMessage",
-        label: "Send Message",
+        label: "Mensaje de Instagram",
         icon: MessageSquare,
+      },
+      {
+        type: "action",
+        nodeType: "collectInput",
+        label: "Recopilación de datos",
+        icon: FileText,
+        actionType: "collectInput",
       },
       {
         type: "aiResponse",
         nodeType: "aiResponse",
-        label: "AI Response",
+        label: "Respuesta con IA",
         icon: Sparkles,
       },
     ],
   },
   {
-    name: "Logic",
+    name: "Lógico",
     items: [
-      { type: "condition", nodeType: "condition", label: "Condition", icon: GitBranch },
-      { type: "delay", nodeType: "delay", label: "Delay", icon: Clock },
+      { type: "condition", nodeType: "condition", label: "Condición", icon: GitBranch },
+      { type: "delay", nodeType: "delay", label: "Retraso", icon: Clock },
       {
         type: "action",
         nodeType: "abSplit",
-        label: "A/B Split",
+        label: "Aleatorizador",
         icon: Shuffle,
         actionType: "abSplit",
       },
       {
         type: "action",
         nodeType: "smartDelay",
-        label: "Smart Delay",
+        label: "Pausa inteligente",
         icon: Hourglass,
         actionType: "smartDelay",
       },
     ],
   },
   {
-    name: "Actions",
+    name: "Acciones",
     items: [
       {
         type: "action",
         nodeType: "addTag",
-        label: "Add Tag",
+        label: "Añadir etiqueta",
         icon: Tag,
         actionType: "addTag",
       },
       {
         type: "action",
         nodeType: "removeTag",
-        label: "Remove Tag",
+        label: "Quitar etiqueta",
         icon: Tag,
         actionType: "removeTag",
       },
       {
         type: "action",
         nodeType: "setCustomField",
-        label: "Set Field",
+        label: "Establecer campo",
         icon: FileText,
         actionType: "setCustomField",
       },
       {
         type: "action",
         nodeType: "httpRequest",
-        label: "HTTP Request",
+        label: "Solicitud externa",
         icon: Globe,
         actionType: "httpRequest",
       },
       {
         type: "action",
         nodeType: "goToFlow",
-        label: "Go To Flow",
+        label: "Iniciar automatización",
         icon: ArrowRightLeft,
         actionType: "goToFlow",
       },
       {
         type: "action",
         nodeType: "humanTakeover",
-        label: "Human Takeover",
+        label: "Pasar a un humano",
         icon: UserCheck,
         actionType: "humanTakeover",
       },
@@ -144,6 +152,10 @@ const categories: PaletteCategory[] = [
       },
     ],
   },
+  {
+    name: "Extras",
+    items: [{ type: "note", nodeType: "note", label: "Comentario", icon: StickyNote }],
+  }
 ];
 
 function onDragStart(event: DragEvent, item: PaletteItem) {

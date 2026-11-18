@@ -37,62 +37,67 @@ const actionConfig: Record<
 > = {
   addTag: {
     icon: Tag,
-    label: "Add Tag",
+    label: "Añadir etiqueta",
     color: "bg-gray-500",
   },
   removeTag: {
     icon: Tag,
-    label: "Remove Tag",
+    label: "Quitar etiqueta",
     color: "bg-gray-500",
   },
   setCustomField: {
     icon: FileText,
-    label: "Set Field",
+    label: "Establecer campo",
     color: "bg-gray-500",
   },
   httpRequest: {
     icon: Globe,
-    label: "HTTP Request",
+    label: "Solicitud externa",
     color: "bg-gray-500",
   },
   goToFlow: {
     icon: ArrowRightLeft,
-    label: "Go To Flow",
+    label: "Iniciar automatización",
     color: "bg-gray-500",
   },
   humanTakeover: {
     icon: UserCheck,
-    label: "Human Takeover",
+    label: "Pasar a un humano",
     color: "bg-gray-500",
   },
   subscribe: {
     icon: Bell,
-    label: "Subscribe",
+    label: "Suscribir",
     color: "bg-gray-500",
   },
   unsubscribe: {
     icon: Bell,
-    label: "Unsubscribe",
+    label: "Cancelar suscripción",
     color: "bg-gray-500",
   },
   commentReply: {
     icon: Cog,
-    label: "Comment Reply",
+    label: "Responder comentario",
     color: "bg-gray-500",
   },
   privateReply: {
     icon: Cog,
-    label: "Private Reply",
+    label: "Respuesta privada",
     color: "bg-gray-500",
   },
   abSplit: {
     icon: Shuffle,
-    label: "A/B Split",
+    label: "Aleatorizador",
+    color: "bg-gray-500",
+  },
+  collectInput: {
+    icon: FileText,
+    label: "Recopilación de datos",
     color: "bg-gray-500",
   },
   smartDelay: {
     icon: Hourglass,
-    label: "Smart Delay",
+    label: "Pausa inteligente",
     color: "bg-gray-500",
   },
 };
