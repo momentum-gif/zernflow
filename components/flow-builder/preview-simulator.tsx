@@ -133,16 +133,18 @@ export function PreviewSimulator({
       }
 
       if (node.type === "action" && d.actionType === "abSplit") {
-        const paths = (d.paths ?? [{ name: "A" }, { name: "B" }]) as Array<{ name: string }>;
-        acc.push({ kind: "system", text: "🔀 Aleatorizador: elige una variante" });
-        setItems([...acc]);
-        setVars(v);
-        setWaiting({
-          kind: "branch",
-          nodeId: node.id,
-          options: paths.map((p, i) => ({ title: `${p.name} (${(p as { weight?: number }).weight ?? ""}%)`, handle: `split-${i}` })),
-        });
-        return;
+        // Like ManyChat: the randomizer picks a variation by its percentage.
+        const paths = (d.paths ?? [{ name: "A", weight: 50 }, { name: "B", weight: 50 }]) as Array<{ name: string; weight: number }>;
+        const total = paths.reduce((s, p) => s + (Number(p.weight) || 0), 0);
+        let r = Math.random() * (total || 1);
+        let pick = paths.length - 1;
+        for (let i = 0; i < paths.length; i++) {
+          r -= Number(paths[i].weight) || 0;
+          if (r < 0) { pick = i; break; }
+        }
+        acc.push({ kind: "system", text: `🔀 Aleatorizador → ${paths[pick]?.name ?? "A"}` });
+        id = next(node.id, `split-${pick}`);
+        continue;
       }
 
       if (node.type === "actions") {

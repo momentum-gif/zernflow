@@ -9,11 +9,13 @@ import {
   UserCheck,
   Bell,
   Shuffle,
+  Split,
   Hourglass,
   Cog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NodeType } from "@/lib/types/database";
+import { randomizerColor, randomizerLetter } from "../randomizer-colors";
 
 export interface ActionNodeProps {
   label?: string;
@@ -156,32 +158,36 @@ export function ActionNode({ data, selected }: NodeProps) {
   const isAbSplit = actionType === "abSplit";
   const paths = isAbSplit ? nodeData.paths || [] : [];
 
-  // ManyChat "Aleatorizador": one row per variation (letter + %), each with its own connector.
+  // ManyChat "Aleatorizador": light-purple header, one row per variation (letter … %),
+  // each with its own coloured connector on the right.
   if (isAbSplit) {
     const rows = paths.length > 0 ? paths : [{ name: "A", weight: 50 }, { name: "B", weight: 50 }];
     return (
-      <div className={cn("w-56 rounded-2xl border bg-card shadow-sm", selected ? "border-purple-500 shadow-md" : "border-border")}>
+      <div
+        className={cn(
+          "w-56 rounded-2xl border-2 bg-card shadow-sm",
+          selected ? "border-emerald-500 shadow-md" : "border-transparent ring-1 ring-border"
+        )}
+      >
         <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-border !bg-white" />
-        <div className="flex items-center gap-2 rounded-t-2xl bg-purple-200 px-3 py-2 text-purple-950 dark:bg-purple-800 dark:text-purple-50">
-          <Shuffle className="h-3.5 w-3.5" />
-          <p className="text-sm font-semibold">{nodeData.label || "Aleatorizador"}</p>
+        <div className="flex items-center gap-2 rounded-t-2xl bg-[#e4dcfb] px-3 py-2 text-foreground dark:bg-purple-900/60">
+          <Split className="h-4 w-4 rotate-90 text-[rgb(127,83,224)]" />
+          <p className="text-sm font-medium">{nodeData.label || "Aleatorizador"}</p>
         </div>
-        <div className="space-y-1.5 p-3">
+        <div className="py-1">
           {rows.map((path, i) => (
-            <div key={i} className="relative flex items-center justify-between rounded-lg border border-border px-3 py-1.5 text-xs">
-              <span className="font-semibold">{path.name}</span>
-              <span className="text-muted-foreground">{path.weight}%</span>
+            <div key={i} className="relative flex items-center justify-between px-4 py-2 text-sm">
+              <span>{randomizerLetter(i)}</span>
+              <span>{path.weight}%</span>
               <Handle
                 type="source"
                 id={`split-${i}`}
                 position={Position.Right}
-                className="!-right-1.5 !h-3 !w-3 !border-2 !border-purple-500 !bg-white"
+                className="!-right-[7px] !h-3 !w-3 !border-2 !bg-white"
+                style={{ borderColor: randomizerColor(i) }}
               />
             </div>
           ))}
-          <p className="pt-1 text-[10px] text-muted-foreground">
-            {(nodeData as { randomPath?: boolean }).randomPath === false ? "Misma variación para cada contacto" : "Ruta aleatoria en cada entrada"}
-          </p>
         </div>
       </div>
     );

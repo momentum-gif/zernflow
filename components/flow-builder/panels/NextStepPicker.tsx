@@ -74,7 +74,10 @@ export function NextStepPicker({
   nodeId,
   handle,
   label = "Cuando se presiona este botón",
+  variant,
 }: {
+  /** "button": ManyChat's dashed blue "Elegir Siguiente Paso" with no caption above. */
+  variant?: "button";
   nodeId: string;
   /** "btn:<payload>" for a button, undefined for the step's "Siguiente paso". */
   handle?: string;
@@ -122,10 +125,12 @@ export function NextStepPicker({
     connect(id);
   }
 
+  const caption = variant === "button" ? null : <p className="mb-1 text-[11px] text-muted-foreground">{label}</p>;
+
   if (target) {
     return (
       <div>
-        <p className="mb-1 text-[11px] text-muted-foreground">{label}</p>
+        {caption}
         <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50/50 px-2.5 py-1.5 text-xs dark:border-emerald-800 dark:bg-emerald-950/20">
           <span className="flex min-w-0 items-center gap-1.5">
             <ArrowRight className="h-3 w-3 shrink-0 text-emerald-600" />
@@ -148,7 +153,7 @@ export function NextStepPicker({
 
   return (
     <div>
-      <p className="mb-1 text-[11px] text-muted-foreground">{label}</p>
+      {caption}
       {choosingExisting ? (
         <select
           autoFocus
@@ -176,9 +181,13 @@ export function NextStepPicker({
             const opt = OPTIONS.find((o) => o.id === v);
             if (opt) create(opt);
           }}
-          className="w-full rounded border border-dashed border-border bg-card px-2 py-1.5 text-xs text-muted-foreground"
+          className={
+            variant === "button"
+              ? "w-full cursor-pointer appearance-none rounded-lg border border-dashed border-sky-400 bg-card px-2 py-2.5 text-center text-sm font-medium text-sky-600 [text-align-last:center] hover:bg-sky-50 dark:hover:bg-sky-950/30"
+              : "w-full rounded border border-dashed border-border bg-card px-2 py-1.5 text-xs text-muted-foreground"
+          }
         >
-          <option value="">+ Elegir siguiente paso…</option>
+          <option value="">{variant === "button" ? "Elegir Siguiente Paso" : "+ Elegir siguiente paso…"}</option>
           {OPTIONS.map((o) => (
             <option key={o.id} value={o.id}>
               {o.label}

@@ -1048,9 +1048,9 @@ function executeABSplit(data: ABSplitNodeData, context?: FlowExecutionContext, n
   const paths = data.paths?.length ? data.paths : [{ name: "A", weight: 50 }, { name: "B", weight: 50 }];
   const totalWeight = paths.reduce((sum, p) => sum + (Number(p.weight) || 0), 0) || paths.length;
 
-  // "Ruta aleatoria" off: the same contact always gets the same variation.
+  // ManyChat "Elige una ruta al azar cada vez" off (default): the same contact always gets the same variation.
   let random: number;
-  if ((data as { randomPath?: boolean }).randomPath === false && context) {
+  if ((data as { randomPath?: boolean }).randomPath !== true && context) {
     let h = 0;
     for (const ch of `${context.contactId}:${nodeId ?? ""}`) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     random = ((h % 10000) / 10000) * totalWeight;

@@ -4,7 +4,10 @@ import { useCallback } from "react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NodeType } from "@/lib/types/database";
+import { useReactFlow } from "@xyflow/react";
 import { EnrollSequencePanel } from "./EnrollSequencePanel";
+import { NextStepPicker } from "./NextStepPicker";
+import { randomizerColor, randomizerLetter } from "../randomizer-colors";
 
 interface ActionPanelData {
   actionType?: NodeType;
@@ -31,6 +34,7 @@ interface ActionPanelData {
 interface ActionPanelProps {
   data: Record<string, unknown>;
   onChange: (data: Record<string, unknown>) => void;
+  nodeId?: string;
 }
 
 interface ActionSubPanelProps {
@@ -38,7 +42,7 @@ interface ActionSubPanelProps {
   onChange: (data: Record<string, unknown>) => void;
 }
 
-export function ActionPanel({ data: rawData, onChange }: ActionPanelProps) {
+export function ActionPanel({ data: rawData, onChange, nodeId }: ActionPanelProps) {
   const data = rawData as ActionPanelData;
   const actionType = data.actionType || "addTag";
 
@@ -58,7 +62,7 @@ export function ActionPanel({ data: rawData, onChange }: ActionPanelProps) {
     case "humanTakeover":
       return <HumanTakeoverConfig data={data} onChange={onChange} />;
     case "abSplit":
-      return <ABSplitConfig data={data} onChange={onChange} />;
+      return <ABSplitConfig data={data} onChange={onChange} nodeId={nodeId ?? ""} />;
     case "smartDelay":
       return <SmartDelayConfig data={data} onChange={onChange} />;
     case "enrollSequence":
@@ -386,115 +390,159 @@ function HumanTakeoverConfig({ data, onChange }: ActionSubPanelProps) {
 }
 
 /* ───────── A/B Split Config ───────── */
-function ABSplitConfig({ data, onChange }: ActionSubPanelProps) {
+function ABSplitConfig({ data, onChange, nodeId }: ActionSubPanelProps & { nodeId: string }) {
+  const { setEdges } = useReactFlow();
   const paths: Array<{ name: string; weight: number }> =
     (data.paths as Array<{ name: string; weight: number }> | undefined) || [
       { name: "A", weight: 50 },
       { name: "B", weight: 50 },
     ];
-  const randomPath = (data as { randomPath?: boolean }).randomPath !== false;
+  const randomPath = (data as { randomPath?: boolean }).randomPath === true;
   const total = paths.reduce((sum, p) => sum + (Number(p.weight) || 0), 0);
-  const colors = ["bg-purple-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
+  const error =
+    paths.length < 2
+      ? "Por favor, añade al menos 2 variaciones"
+      : total !== 100
+        ? "Las rutas deben sumar hasta 100%. Ajusta tu distribución."
+        : null;
 
-  const setPaths = (next: Array<{ name: string; weight: number }>) => onChange({ ...data, paths: next });
+  const relabel = (list: Array<{ name: string; weight: number }>) =>
+    list.map((p, i) => ({ ...p, name: randomizerLetter(i) }));
   const even = (n: number) => {
     const base = Math.floor(100 / n);
-    return Array.from({ length: n }, (_, i) => base + (i === 0 ? 100 - base * n : 0));
+    return Array.from({ length: n }, (_, i) => (i === n - 1 ? 100 - base * (n - 1) : base));
   };
+
+  function addVariation() {
+    const n = paths.length + 1;
+    const wasEven =
+      total === 100 && paths.every((p, i) => p.weight === even(paths.length)[i]);
+    const next = wasEven
+      ? even(n).map((w, i) => ({ name: randomizerLetter(i), weight: w }))
+      : relabel([...paths, { name: "", weight: Math.max(0, 100 - total) }]);
+    onChange({ ...data, paths: next });
+  }
+
+  function removeVariation(index: number) {
+    onChange({ ...data, paths: relabel(paths.filter((_, i) => i !== index)) });
+    // Keep every remaining variation connected to its own step.
+    setEdges((eds) =>
+      eds
+        .filter((e) => !(e.source === nodeId && e.sourceHandle === `split-${index}`))
+        .map((e) => {
+          const m = e.source === nodeId && e.sourceHandle?.match(/^split-(\d+)$/);
+          if (m && Number(m[1]) > index) return { ...e, sourceHandle: `split-${Number(m[1]) - 1}` };
+          return e;
+        })
+    );
+  }
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-foreground">
-        Envía a cada contacto por una de las variaciones según su porcentaje. Úsalo para probar qué mensaje funciona
-        mejor.
-      </p>
+      <p className="text-sm font-semibold text-foreground">Dividir el tráfico</p>
 
-      <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
-        {paths.map((p, i) => (
-          <div key={i} className={colors[i % colors.length]} style={{ width: `${total > 0 ? (p.weight / total) * 100 : 0}%` }} />
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        {paths.map((path, i) => (
-          <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-            <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", colors[i % colors.length])} />
-            <span className="w-6 text-sm font-semibold">{path.name}</span>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={path.weight}
-              onChange={(e) => {
-                const w = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
-                setPaths(paths.map((p, j) => (j === i ? { ...p, weight: w } : p)));
-              }}
-              className="w-16 rounded border border-border bg-card px-2 py-1 text-right text-sm"
-            />
-            <span className="text-sm text-muted-foreground">%</span>
-            <span className="flex-1" />
-            {paths.length > 2 && (
-              <button
-                type="button"
-                onClick={() => {
-                  const rest = paths.filter((_, j) => j !== i);
-                  const w = even(rest.length);
-                  setPaths(rest.map((p, j) => ({ name: String.fromCharCode(65 + j), weight: w[j] })));
-                }}
-                className="text-muted-foreground hover:text-red-500"
-                aria-label="Quitar variación"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {total !== 100 && <p className="text-xs font-medium text-red-500">La suma es {total}%. Debe ser 100%.</p>}
-
-      <div className="flex gap-2">
-        {paths.length < 6 && (
-          <button
-            type="button"
-            onClick={() => {
-              const w = even(paths.length + 1);
-              setPaths([...paths, { name: "", weight: 0 }].map((p, j) => ({ name: String.fromCharCode(65 + j), weight: w[j] })));
-            }}
-            className="flex-1 rounded-lg border border-dashed border-purple-400 py-2 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-          >
-            + Variación
-          </button>
-        )}
+      <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => {
-            const w = even(paths.length);
-            setPaths(paths.map((p, j) => ({ ...p, weight: w[j] })));
-          }}
-          className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+          role="switch"
+          aria-checked={randomPath}
+          onClick={() => onChange({ ...data, randomPath: !randomPath })}
+          className={cn(
+            "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+            randomPath ? "bg-blue-600" : "bg-neutral-700"
+          )}
         >
-          Repartir por igual
+          <span
+            className={cn(
+              "absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all",
+              randomPath ? "left-3.5" : "left-0.5"
+            )}
+          />
         </button>
+        <span className="text-sm text-foreground">Elige una ruta al azar cada vez</span>
+        <span
+          className="flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-muted-foreground text-[9px] text-muted-foreground"
+          title="Si está marcado, el contacto seguirá una ruta aleatoria cada vez que alcance este paso. De lo contrario, el contacto siempre seguirá la misma ruta (ideal para las pruebas A/B, concursos y loterías)."
+        >
+          ?
+        </span>
       </div>
 
-      <label className="flex items-start gap-2 rounded-lg border border-border p-3">
-        <input
-          type="checkbox"
-          checked={randomPath}
-          onChange={(e) => onChange({ ...data, randomPath: e.target.checked })}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="block text-sm font-medium">Ruta aleatoria</span>
-          <span className="block text-xs text-muted-foreground">
-            Activado: cada vez que alguien pasa por aquí se elige una variación al azar. Desactivado: cada contacto
-            recibe siempre la misma variación.
-          </span>
-        </span>
-      </label>
+      <div>
+        <div
+          className={cn(
+            "flex items-center justify-between rounded-md border px-3 py-2 text-sm",
+            error ? "border-red-500 bg-red-50 dark:bg-red-950/30" : "border-border"
+          )}
+        >
+          <span>Tráfico asignado</span>
+          <span className={error ? "text-red-600" : ""}>{total}%</span>
+        </div>
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      </div>
 
-      <p className="text-xs text-muted-foreground">En el lienzo, conecta cada variación (A, B…) a su propio paso.</p>
+      <div className="space-y-3">
+        {paths.map((path, i) => {
+          const color = randomizerColor(i);
+          return (
+            <div key={i} className="group relative rounded-lg border border-border px-3 pb-3 pt-4">
+              <button
+                type="button"
+                onClick={() => removeVariation(i)}
+                className="absolute right-1.5 top-1.5 hidden rounded p-0.5 text-muted-foreground hover:text-foreground group-hover:block"
+                aria-label="Eliminar variación"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="mb-3 flex items-center gap-3">
+                <span className="w-4 text-base font-semibold" style={{ color }}>
+                  {randomizerLetter(i)}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={path.weight}
+                  onChange={(e) =>
+                    onChange({
+                      ...data,
+                      paths: paths.map((p, j) => (j === i ? { ...p, weight: parseInt(e.target.value) || 0 } : p)),
+                    })
+                  }
+                  className="flex-1"
+                  style={{ accentColor: color }}
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={3}
+                  aria-label="Valor"
+                  value={String(path.weight)}
+                  onChange={(e) => {
+                    const w = Math.max(0, Math.min(100, parseInt(e.target.value.replace(/\D/g, "")) || 0));
+                    onChange({ ...data, paths: paths.map((p, j) => (j === i ? { ...p, weight: w } : p)) });
+                  }}
+                  className={cn(
+                    "w-12 rounded-md border bg-card px-2 py-1 text-right text-sm",
+                    error && paths.length >= 2 ? "border-red-500" : "border-border"
+                  )}
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+              <NextStepPicker nodeId={nodeId} handle={`split-${i}`} variant="button" />
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={addVariation}
+        className="w-full rounded-lg border border-dashed border-sky-400 py-2.5 text-sm text-muted-foreground hover:bg-sky-50 dark:hover:bg-sky-950/30"
+      >
+        + Nueva variación
+      </button>
     </div>
   );
 }

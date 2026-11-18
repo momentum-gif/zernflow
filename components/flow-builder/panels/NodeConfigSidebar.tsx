@@ -170,7 +170,7 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
       case "aiResponse":
         return <AiResponsePanel data={data} onChange={handleChange} />;
       case "action":
-        return <ActionPanel data={data} onChange={handleChange} />;
+        return <ActionPanel data={data} onChange={handleChange} nodeId={node.id} />;
       case "actions":
         return <ActionsListPanel data={data} onChange={handleChange} />;
       default:
@@ -192,8 +192,15 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
     delay: "bg-red-100 dark:bg-red-950/50",
     action: "bg-lime-100 dark:bg-lime-950/50",
   };
-  const defaultTitle =
-    nodeType === "sendMessage" ? "Enviar mensaje" : nodeType === "trigger" ? "Disparador" : config.label;
+  const isRandomizer = nodeType === "action" && (node.data as { actionType?: string }).actionType === "abSplit";
+  if (isRandomizer) headerBg.action = "bg-[#e4dcfb] dark:bg-purple-900/60";
+  const defaultTitle = isRandomizer
+    ? "Aleatorizador"
+    : nodeType === "sendMessage"
+      ? "Enviar mensaje"
+      : nodeType === "trigger"
+        ? "Disparador"
+        : config.label;
 
   return (
     <div className="flex w-[360px] shrink-0 flex-col border-r border-border bg-card shadow-lg">

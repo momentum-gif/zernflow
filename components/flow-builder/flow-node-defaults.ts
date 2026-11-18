@@ -24,7 +24,7 @@ export function getDefaultData(type: string, actionType?: string): Record<string
       if (actionType === "abSplit") {
         return {
           actionType,
-          randomPath: true,
+          randomPath: false,
           paths: [
             { name: "A", weight: 50 },
             { name: "B", weight: 50 },
