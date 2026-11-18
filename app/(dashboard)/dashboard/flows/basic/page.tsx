@@ -15,6 +15,7 @@ export default async function BasicAutomationsPage() {
     .from("flows")
     .select("id, name, status, nodes, updated_at")
     .eq("workspace_id", workspace.id)
+    .neq("status", "archived")
     .order("updated_at", { ascending: false });
 
   const list: BasicFlow[] = (flows ?? []).map((f) => ({

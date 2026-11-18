@@ -58,6 +58,9 @@ export async function PUT(
   if (body.nodes !== undefined) update.nodes = body.nodes;
   if (body.edges !== undefined) update.edges = body.edges;
   if (body.viewport !== undefined) update.viewport = body.viewport;
+  // "Mover a" a folder (null = root) and Papelera (archived) / Restaurar (draft).
+  if (body.folder_id !== undefined) update.folder_id = body.folder_id;
+  if (body.status === "archived" || body.status === "draft") update.status = body.status;
 
   const { data: flow, error } = await supabase
     .from("flows")

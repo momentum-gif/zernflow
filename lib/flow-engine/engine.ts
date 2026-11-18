@@ -126,22 +126,26 @@ export async function executeFlow(
 
   if (!session) return;
 
-  // Track flow_started
+  const { data: firedTrigger } = await supabase
+    .from("triggers")
+    .select("config, type")
+    .eq("id", context.triggerId)
+    .maybeSingle();
+
+  // A tap on a button continues a run; it is counted as a click (for CTR),
+  // not as a new run ("Ejecuciones").
+  const isButtonContinuation =
+    firedTrigger?.type === "postback" || firedTrigger?.type === "quick_reply";
   await supabase.from("analytics_events").insert({
     workspace_id: context.workspaceId,
     flow_id: context.flowId,
     contact_id: context.contactId,
-    event_type: "flow_started",
+    event_type: isButtonContinuation ? "button_clicked" : "flow_started",
     metadata: { triggerId: context.triggerId },
   });
 
   // Find the trigger node (entry point). Rows published since the ManyChat-style
   // builder carry the id of the node that produced them; start exactly there.
-  const { data: firedTrigger } = await supabase
-    .from("triggers")
-    .select("config")
-    .eq("id", context.triggerId)
-    .maybeSingle();
   const firedConfig = firedTrigger?.config as { nodeId?: string; startHandle?: string } | null;
   const firedNodeId = firedConfig?.nodeId;
 

@@ -427,6 +427,27 @@ export interface Database {
           },
         ];
       };
+      automation_folders: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          workspace_id?: string;
+          name?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       flows: {
         Row: {
           id: string;
@@ -439,6 +460,7 @@ export interface Database {
           viewport: Json | null;
           version: number;
           published_at: string | null;
+          folder_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -453,6 +475,7 @@ export interface Database {
           viewport?: Json | null;
           version?: number;
           published_at?: string | null;
+          folder_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -465,6 +488,7 @@ export interface Database {
           viewport?: Json | null;
           version?: number;
           published_at?: string | null;
+          folder_id?: string | null;
           updated_at?: string;
         };
         Relationships: [
