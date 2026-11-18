@@ -1,10 +1,29 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Plus, X, GripVertical, Image, Type, MousePointer, MessageCircle, LayoutGrid } from "lucide-react";
+import {
+  Plus,
+  X,
+  GripVertical,
+  Image,
+  Type,
+  MousePointer,
+  MessageCircle,
+  LayoutGrid,
+  AlignLeft,
+  FileText,
+  Clock,
+  TextCursorInput,
+  MoreHorizontal,
+  Volume2,
+  Video,
+  RectangleHorizontal,
+  GalleryHorizontal,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useReactFlow, useStore, type Edge } from "@xyflow/react";
 import { NextStepPicker, useCreateConnectedStep } from "./NextStepPicker";
+import { MediaUpload } from "./MediaUpload";
 
 /** Hidden code that links a button to the step it is connected to (like ManyChat). */
 export function newButtonPayload() {
@@ -336,16 +355,11 @@ function MessageEditor({
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        <input
-          type="url"
-          value={message.mediaUrl ?? ""}
-          onChange={(e) => onChange({ ...message, mediaUrl: e.target.value, mediaType: block })}
-          placeholder={block === "file" ? "Enlace público del PDF (https://…)" : "Enlace público del archivo (https://…)"}
-          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        <MediaUpload
+          kind={block}
+          url={message.mediaUrl ?? ""}
+          onChange={(url) => onChange({ ...message, mediaUrl: url, mediaType: block })}
         />
-        <p className="mt-1 text-[11px] text-muted-foreground/70">
-          Pega el enlace directo al archivo (por ejemplo, de Google Drive con acceso público o de tu web).
-        </p>
       </div>
     );
   }
@@ -975,55 +989,59 @@ function ContentBlockBar({
   nodeId?: string;
 }) {
   const [more, setMore] = useState(false);
-  const item = "flex flex-col items-start rounded-lg border border-dashed border-border px-3 py-2 text-left hover:border-blue-400";
+  const item =
+    "flex w-full items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2.5 text-left hover:border-blue-400";
+  const Row = ({ icon: Icon, title, desc }: { icon: typeof AlignLeft; title: string; desc: string }) => (
+    <>
+      <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0">
+        <span className="block text-sm">{title}</span>
+        <span className="block text-[11px] text-muted-foreground">{desc}</span>
+      </span>
+    </>
+  );
   return (
     <div>
       <p className="mb-2 text-xs text-muted-foreground">Añade uno de los bloques de contenido:</p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-2">
         <button type="button" className={item} onClick={() => onAdd({ block: "text", text: "" })}>
-          <span className="text-sm font-medium">Texto</span>
-          <span className="text-[11px] text-muted-foreground">Añadir texto y botones simples</span>
+          <Row icon={AlignLeft} title="Texto" desc="Añadir texto y botones simples" />
         </button>
         <button type="button" className={item} onClick={() => onAdd({ block: "image", mediaType: "image", mediaUrl: "" })}>
-          <span className="text-sm font-medium">Imagen</span>
-          <span className="text-[11px] text-muted-foreground">Aumentar la participación con elementos visuales</span>
+          <Row icon={Image} title="Imagen" desc="Aumentar la participación con elementos visuales" />
         </button>
         <button type="button" className={item} onClick={() => onAdd({ block: "file", mediaType: "file", mediaUrl: "" })}>
-          <span className="text-sm font-medium">PDF</span>
-          <span className="text-[11px] text-muted-foreground">Añade archivos PDF a tu mensaje</span>
+          <Row icon={FileText} title="PDF" desc="Añade archivos PDF a tu mensaje" />
         </button>
         <button type="button" className={item} onClick={() => onAdd({ block: "delay", delaySeconds: 3 })}>
-          <span className="text-sm font-medium">Retraso</span>
-          <span className="text-[11px] text-muted-foreground">Espera unos segundos entre los textos</span>
+          <Row icon={Clock} title="Retraso" desc="Espera unos segundos entre los textos" />
         </button>
         {nodeId && (
           <button
             type="button"
-            className={cn(item, !onAddQuestion && "opacity-50")}
+            className={cn(item, !onAddQuestion && "cursor-not-allowed opacity-50")}
             onClick={() => (onAddQuestion ? onAddQuestion() : undefined)}
             title={onAddQuestion ? undefined : "Este mensaje ya tiene una pregunta"}
           >
-            <span className="text-sm font-medium">Recopilación de datos</span>
-            <span className="text-[11px] text-muted-foreground">Recopila correos electrónicos, teléfonos y más</span>
+            <Row icon={TextCursorInput} title="Recopilación de datos" desc="Recopila correos electrónicos, teléfonos y más" />
           </button>
         )}
         <div className="relative">
-          <button type="button" className={cn(item, "w-full")} onClick={() => setMore((m) => !m)}>
-            <span className="text-sm font-medium">Más</span>
-            <span className="text-[11px] text-muted-foreground">Ver todas las opciones disponibles</span>
+          <button type="button" className={item} onClick={() => setMore((m) => !m)}>
+            <Row icon={MoreHorizontal} title="Más" desc="Ver todas las opciones disponibles" />
           </button>
           {more && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setMore(false)} />
-              <div className="absolute bottom-full right-0 z-50 mb-1 w-56 space-y-1 rounded-lg border border-border bg-card p-1 shadow-lg">
+              <div className="absolute bottom-full left-0 z-50 mb-1 w-64 space-y-2 rounded-lg border border-border bg-card p-2 shadow-lg">
                 {(
                   [
-                    ["Audio", "Envía fragmentos de voz en el chat", { block: "audio", mediaType: "audio", mediaUrl: "" }],
-                    ["Video", "Compartir video en el chat", { block: "video", mediaType: "video", mediaUrl: "" }],
-                    ["Tarjeta", "Añadir imágenes con botones", { block: "gallery", carousel: { elements: [{ title: "", subtitle: "", imageUrl: "" }] } }],
-                    ["Galería", "Añadir hasta 10 imágenes con botones", { block: "gallery", carousel: { elements: [{ title: "", subtitle: "", imageUrl: "" }, { title: "", subtitle: "", imageUrl: "" }] } }],
-                  ] as Array<[string, string, Message]>
-                ).map(([title, desc, msg]) => (
+                    [Volume2, "Audio", "Envía fragmentos de voz en el chat", { block: "audio", mediaType: "audio", mediaUrl: "" }],
+                    [Video, "Vídeo", "Compartir vídeo en el chat", { block: "video", mediaType: "video", mediaUrl: "" }],
+                    [RectangleHorizontal, "Tarjeta", "Añadir imágenes con botones", { block: "gallery", carousel: { elements: [{ title: "", subtitle: "", imageUrl: "" }] } }],
+                    [GalleryHorizontal, "Galería", "Añadir hasta 10 imágenes con botones", { block: "gallery", carousel: { elements: [{ title: "", subtitle: "", imageUrl: "" }, { title: "", subtitle: "", imageUrl: "" }] } }],
+                  ] as Array<[typeof AlignLeft, string, string, Message]>
+                ).map(([icon, title, desc, msg]) => (
                   <button
                     key={title}
                     type="button"
@@ -1031,10 +1049,9 @@ function ContentBlockBar({
                       onAdd(msg);
                       setMore(false);
                     }}
-                    className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-muted"
+                    className={item}
                   >
-                    <span className="block text-sm font-medium">{title}</span>
-                    <span className="block text-[11px] text-muted-foreground">{desc}</span>
+                    <Row icon={icon} title={title} desc={desc} />
                   </button>
                 ))}
               </div>
@@ -1045,7 +1062,6 @@ function ContentBlockBar({
     </div>
   );
 }
-
 
 const INPUT_TYPES: Array<[string, string]> = [
   ["text", "Texto"],
@@ -1123,6 +1139,38 @@ function QuestionBlock({
         Nota: La automatización se pausa hasta que el contacto responde
       </p>
 
+      {/* ManyChat "+ Añadir respuesta inmediata": quick replies sent with the question. */}
+      <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+        {options.map((o, i) => (
+          <span key={i} className="flex items-center gap-1 rounded-full border border-blue-400 px-2 py-0.5">
+            <input
+              value={o}
+              maxLength={20}
+              onChange={(e) => set({ options: options.map((x, j) => (j === i ? e.target.value : x)) })}
+              placeholder="Respuesta"
+              className="w-24 bg-transparent text-center text-xs text-blue-600 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => set({ options: options.filter((_, j) => j !== i) })}
+              className="text-muted-foreground hover:text-red-500"
+              aria-label="Quitar respuesta"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        {options.length < 13 && (
+          <button
+            type="button"
+            onClick={() => set({ options: [...options, ""] })}
+            className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted"
+          >
+            + Añadir respuesta inmediata
+          </button>
+        )}
+      </div>
+
       {editing && (
         <div className="mt-3 space-y-4 rounded-lg border border-border bg-card p-3 shadow-sm">
           <div className="flex items-center justify-between">
@@ -1142,34 +1190,6 @@ function QuestionBlock({
               ))}
             </select>
           </div>
-
-          {question.inputType === "choice" && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium">Opciones</p>
-              {options.map((o, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <input
-                    value={o}
-                    maxLength={20}
-                    onChange={(e) => set({ options: options.map((x, j) => (j === i ? e.target.value : x)) })}
-                    className={field}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => set({ options: options.filter((_, j) => j !== i) })}
-                    className="text-muted-foreground hover:text-red-500"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-              {options.length < 13 && (
-                <button type="button" onClick={() => set({ options: [...options, ""] })} className="text-xs text-blue-600">
-                  + Añadir opción
-                </button>
-              )}
-            </div>
-          )}
 
           <div>
             <p className="mb-1 text-xs font-medium">Guardar respuesta en un campo personalizado</p>

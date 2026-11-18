@@ -109,7 +109,7 @@ export function PreviewSimulator({
         // Question block inside the message ("Recopilación de datos"): wait for a typed answer.
         const q = d.question as { text?: string; inputType?: string; options?: string[]; variableName?: string } | undefined;
         if (q?.text?.trim()) {
-          acc.push({ kind: "bot", text: fill(q.text, v), buttons: q.inputType === "choice" ? q.options : undefined });
+          acc.push({ kind: "bot", text: fill(q.text, v), buttons: q.options?.filter(Boolean).length ? q.options.filter(Boolean) : undefined });
           setItems([...acc]);
           setVars(v);
           setWaiting({ kind: "input", nodeId: node.id, question: String(q.variableName || "respuesta") });

@@ -1610,7 +1610,8 @@ async function askMessageQuestion(
 ): Promise<"pause"> {
   const options = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
   const message: Record<string, unknown> = { text: q.text };
-  if (q.inputType === "choice" && options.length > 0) {
+  // "Respuestas inmediatas" go out as quick replies with any answer type.
+  if (options.length > 0) {
     message.quickReplies = options.slice(0, 13).map((o) => ({ title: o.slice(0, 20), payload: `ci:${o}` }));
   }
   await executeSendMessage(supabase, { messages: [message] } as unknown as SendMessageNodeData, context);
