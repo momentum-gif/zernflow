@@ -137,7 +137,11 @@ export function PreviewSimulator({
         acc.push({ kind: "system", text: "🔀 Aleatorizador: elige una variante" });
         setItems([...acc]);
         setVars(v);
-        setWaiting({ kind: "branch", nodeId: node.id, options: paths.map((p) => ({ title: p.name, handle: p.name })) });
+        setWaiting({
+          kind: "branch",
+          nodeId: node.id,
+          options: paths.map((p, i) => ({ title: `${p.name} (${(p as { weight?: number }).weight ?? ""}%)`, handle: `split-${i}` })),
+        });
         return;
       }
 

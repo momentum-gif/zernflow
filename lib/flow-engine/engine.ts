@@ -477,7 +477,7 @@ async function executeNode(
     case "aiResponse":
       return executeAiResponse(supabase, node.data as AiResponseNodeData, context, sessionId);
     case "abSplit":
-      return executeABSplit(node.data as ABSplitNodeData);
+      return executeABSplit(node.data as ABSplitNodeData, context, node.id);
     case "smartDelay":
       // Wait for next input
       await supabase
@@ -1044,19 +1044,26 @@ async function executeSubscription(
     .eq("id", context.contactId);
 }
 
-function executeABSplit(data: ABSplitNodeData): string {
-  const totalWeight = data.paths.reduce((sum, p) => sum + p.weight, 0);
-  const random = Math.random() * totalWeight;
+function executeABSplit(data: ABSplitNodeData, context?: FlowExecutionContext, nodeId?: string): string {
+  const paths = data.paths?.length ? data.paths : [{ name: "A", weight: 50 }, { name: "B", weight: 50 }];
+  const totalWeight = paths.reduce((sum, p) => sum + (Number(p.weight) || 0), 0) || paths.length;
 
-  let cumulative = 0;
-  for (let i = 0; i < data.paths.length; i++) {
-    cumulative += data.paths[i].weight;
-    if (random <= cumulative) {
-      return `handle:${data.paths[i].name}`;
-    }
+  // "Ruta aleatoria" off: the same contact always gets the same variation.
+  let random: number;
+  if ((data as { randomPath?: boolean }).randomPath === false && context) {
+    let h = 0;
+    for (const ch of `${context.contactId}:${nodeId ?? ""}`) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    random = ((h % 10000) / 10000) * totalWeight;
+  } else {
+    random = Math.random() * totalWeight;
   }
 
-  return `handle:${data.paths[0].name}`;
+  let cumulative = 0;
+  for (let i = 0; i < paths.length; i++) {
+    cumulative += Number(paths[i].weight) || (totalWeight === paths.length ? 1 : 0);
+    if (random < cumulative) return `handle:split-${i}`;
+  }
+  return `handle:split-${paths.length - 1}`;
 }
 
 /**

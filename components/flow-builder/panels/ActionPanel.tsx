@@ -387,146 +387,114 @@ function HumanTakeoverConfig({ data, onChange }: ActionSubPanelProps) {
 
 /* ───────── A/B Split Config ───────── */
 function ABSplitConfig({ data, onChange }: ActionSubPanelProps) {
-  const paths = data.paths || [
-    { name: "A", weight: 50 },
-    { name: "B", weight: 50 },
-  ];
+  const paths: Array<{ name: string; weight: number }> =
+    (data.paths as Array<{ name: string; weight: number }> | undefined) || [
+      { name: "A", weight: 50 },
+      { name: "B", weight: 50 },
+    ];
+  const randomPath = (data as { randomPath?: boolean }).randomPath !== false;
+  const total = paths.reduce((sum, p) => sum + (Number(p.weight) || 0), 0);
+  const colors = ["bg-purple-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
 
-  const totalWeight = paths.reduce((sum, p) => sum + p.weight, 0);
-
-  const updatePath = useCallback(
-    (index: number, updated: { name: string; weight: number }) => {
-      const newPaths = [...paths];
-      newPaths[index] = updated;
-      onChange({ ...data, paths: newPaths });
-    },
-    [data, paths, onChange]
-  );
-
-  const addPath = useCallback(() => {
-    onChange({ ...data, paths: [...paths, { name: String.fromCharCode(65 + paths.length), weight: 0 }] });
-  }, [data, paths, onChange]);
-
-  const removePath = useCallback(
-    (index: number) => {
-      if (paths.length <= 2) return;
-      onChange({ ...data, paths: paths.filter((_, i) => i !== index) });
-    },
-    [data, paths, onChange]
-  );
-
-  const distributeEvenly = useCallback(() => {
-    const evenWeight = Math.floor(100 / paths.length);
-    const remainder = 100 - evenWeight * paths.length;
-    const newPaths = paths.map((p, i) => ({
-      ...p,
-      weight: evenWeight + (i === 0 ? remainder : 0),
-    }));
-    onChange({ ...data, paths: newPaths });
-  }, [data, paths, onChange]);
+  const setPaths = (next: Array<{ name: string; weight: number }>) => onChange({ ...data, paths: next });
+  const even = (n: number) => {
+    const base = Math.floor(100 / n);
+    return Array.from({ length: n }, (_, i) => base + (i === 0 ? 100 - base * n : 0));
+  };
 
   return (
     <div className="space-y-4">
-      {/* Distribution bar */}
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <label className="text-xs font-semibold text-foreground">
-            Traffic Distribution
-          </label>
+      <p className="text-sm text-foreground">
+        Envía a cada contacto por una de las variaciones según su porcentaje. Úsalo para probar qué mensaje funciona
+        mejor.
+      </p>
+
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+        {paths.map((p, i) => (
+          <div key={i} className={colors[i % colors.length]} style={{ width: `${total > 0 ? (p.weight / total) * 100 : 0}%` }} />
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        {paths.map((path, i) => (
+          <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+            <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", colors[i % colors.length])} />
+            <span className="w-6 text-sm font-semibold">{path.name}</span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={path.weight}
+              onChange={(e) => {
+                const w = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                setPaths(paths.map((p, j) => (j === i ? { ...p, weight: w } : p)));
+              }}
+              className="w-16 rounded border border-border bg-card px-2 py-1 text-right text-sm"
+            />
+            <span className="text-sm text-muted-foreground">%</span>
+            <span className="flex-1" />
+            {paths.length > 2 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const rest = paths.filter((_, j) => j !== i);
+                  const w = even(rest.length);
+                  setPaths(rest.map((p, j) => ({ name: String.fromCharCode(65 + j), weight: w[j] })));
+                }}
+                className="text-muted-foreground hover:text-red-500"
+                aria-label="Quitar variación"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {total !== 100 && <p className="text-xs font-medium text-red-500">La suma es {total}%. Debe ser 100%.</p>}
+
+      <div className="flex gap-2">
+        {paths.length < 6 && (
           <button
             type="button"
-            onClick={distributeEvenly}
-            className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              const w = even(paths.length + 1);
+              setPaths([...paths, { name: "", weight: 0 }].map((p, j) => ({ name: String.fromCharCode(65 + j), weight: w[j] })));
+            }}
+            className="flex-1 rounded-lg border border-dashed border-purple-400 py-2 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
           >
-            Distribute evenly
+            + Variación
           </button>
-        </div>
-        <div className="flex h-3 overflow-hidden rounded-full bg-muted">
-          {paths.map((path, i) => {
-            const colors = [
-              "bg-blue-500",
-              "bg-emerald-500",
-              "bg-amber-500",
-              "bg-purple-500",
-              "bg-rose-500",
-            ];
-            return (
-              <div
-                key={i}
-                className={cn("transition-all", colors[i % colors.length])}
-                style={{ width: `${totalWeight > 0 ? (path.weight / totalWeight) * 100 : 0}%` }}
-              />
-            );
-          })}
-        </div>
-        {totalWeight !== 100 && (
-          <p className="mt-1 text-[11px] font-medium text-red-500">
-            Total is {totalWeight}% (should be 100%)
-          </p>
         )}
-      </div>
-
-      {/* Paths */}
-      <div className="space-y-2">
-        {paths.map((path, index) => {
-          const colors = [
-            "border-l-blue-500",
-            "border-l-emerald-500",
-            "border-l-amber-500",
-            "border-l-purple-500",
-            "border-l-rose-500",
-          ];
-          return (
-            <div
-              key={index}
-              className={cn(
-                "flex items-center gap-2 rounded-lg border border-border border-l-4 bg-card p-3",
-                colors[index % colors.length]
-              )}
-            >
-              <input
-                type="text"
-                value={path.name}
-                onChange={(e) => updatePath(index, { ...path, name: e.target.value })}
-                className="w-16 rounded border border-border bg-muted px-2 py-1.5 text-xs font-medium text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={path.weight}
-                onChange={(e) =>
-                  updatePath(index, { ...path, weight: parseInt(e.target.value) })
-                }
-                className="flex-1 accent-muted-foreground"
-              />
-              <span className="w-10 text-right text-xs font-semibold text-foreground">
-                {path.weight}%
-              </span>
-              {paths.length > 2 && (
-                <button
-                  type="button"
-                  onClick={() => removePath(index)}
-                  className="rounded p-1 text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {paths.length < 5 && (
         <button
           type="button"
-          onClick={addPath}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-muted-foreground hover:text-muted-foreground"
+          onClick={() => {
+            const w = even(paths.length);
+            setPaths(paths.map((p, j) => ({ ...p, weight: w[j] })));
+          }}
+          className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
         >
-          <Plus className="h-3.5 w-3.5" />
-          Add Path
+          Repartir por igual
         </button>
-      )}
+      </div>
+
+      <label className="flex items-start gap-2 rounded-lg border border-border p-3">
+        <input
+          type="checkbox"
+          checked={randomPath}
+          onChange={(e) => onChange({ ...data, randomPath: e.target.checked })}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="block text-sm font-medium">Ruta aleatoria</span>
+          <span className="block text-xs text-muted-foreground">
+            Activado: cada vez que alguien pasa por aquí se elige una variación al azar. Desactivado: cada contacto
+            recibe siempre la misma variación.
+          </span>
+        </span>
+      </label>
+
+      <p className="text-xs text-muted-foreground">En el lienzo, conecta cada variación (A, B…) a su propio paso.</p>
     </div>
   );
 }

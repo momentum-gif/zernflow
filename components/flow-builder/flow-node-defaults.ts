@@ -21,6 +21,16 @@ export function getDefaultData(type: string, actionType?: string): Record<string
     case "aiResponse":
       return { systemPrompt: "", model: "openai/gpt-4o-mini", temperature: 0.7, maxTokens: 500, contextMessages: 10 };
     case "action":
+      if (actionType === "abSplit") {
+        return {
+          actionType,
+          randomPath: true,
+          paths: [
+            { name: "A", weight: 50 },
+            { name: "B", weight: 50 },
+          ],
+        };
+      }
       if (actionType === "collectInput") {
         return { actionType, question: "", inputType: "email", variableName: "email" };
       }
