@@ -114,8 +114,15 @@ export async function executeFlow(
     metadata: { triggerId: context.triggerId },
   });
 
-  // Find the trigger node (entry point)
-  const triggerNodes = nodes.filter((n) => n.type === "trigger"); const trigField = (n: FlowNode, k: "triggerType" | "payload") => (n.data as unknown as Record<string, string | undefined>)?.[k]; const inc = context.incomingMessage; const triggerNode = (inc.postbackPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "postback" && trigField(n, "payload") === inc.postbackPayload) : undefined) ?? (inc.quickReplyPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "quick_reply" && trigField(n, "payload") === inc.quickReplyPayload) : undefined) ?? (inc.text ? triggerNodes.find((n) => trigField(n, "triggerType") === "keyword" && (((n.data as unknown as { keywords?: Array<string | { value: string; matchType?: string }> }).keywords) ?? []).some((kw) => { const v = (typeof kw === "string" ? kw : kw.value).toLowerCase(); const m = typeof kw === "string" ? "contains" : (kw.matchType ?? "contains"); const t = inc.text!.toLowerCase().trim(); return m === "exact" ? t === v : m === "startsWith" ? t.startsWith(v) : t.includes(v); })) : undefined) ?? triggerNodes.find((n) => !["postback", "quick_reply"].includes(trigField(n, "triggerType") ?? "keyword")) ?? triggerNodes[0];
+  // Find the trigger node (entry point). Rows published since the ManyChat-style
+  // builder carry the id of the node that produced them; start exactly there.
+  const { data: firedTrigger } = await supabase
+    .from("triggers")
+    .select("config")
+    .eq("id", context.triggerId)
+    .maybeSingle();
+  const firedNodeId = (firedTrigger?.config as { nodeId?: string } | null)?.nodeId;
+  const triggerNodes = nodes.filter((n) => n.type === "trigger"); const trigField = (n: FlowNode, k: "triggerType" | "payload") => (n.data as unknown as Record<string, string | undefined>)?.[k]; const inc = context.incomingMessage; const triggerNode = (firedNodeId ? triggerNodes.find((n) => n.id === firedNodeId) : undefined) ?? (inc.postbackPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "postback" && trigField(n, "payload") === inc.postbackPayload) : undefined) ?? (inc.quickReplyPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "quick_reply" && trigField(n, "payload") === inc.quickReplyPayload) : undefined) ?? (inc.text ? triggerNodes.find((n) => trigField(n, "triggerType") === "keyword" && (((n.data as unknown as { keywords?: Array<string | { value: string; matchType?: string }> }).keywords) ?? []).some((kw) => { const v = (typeof kw === "string" ? kw : kw.value).toLowerCase(); const m = typeof kw === "string" ? "contains" : (kw.matchType ?? "contains"); const t = inc.text!.toLowerCase().trim(); return m === "exact" ? t === v : m === "startsWith" ? t.startsWith(v) : t.includes(v); })) : undefined) ?? triggerNodes.find((n) => !["postback", "quick_reply"].includes(trigField(n, "triggerType") ?? "keyword")) ?? triggerNodes[0];
   if (!triggerNode) return;
 
   // Get the first connected node

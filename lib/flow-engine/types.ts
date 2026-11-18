@@ -166,6 +166,8 @@ export interface FlowExecutionContext {
   /** The Zernio API account ID (from channels.late_account_id) */
   lateAccountId?: string;
   incomingMessage: {
+    /** Instagram DM event that started this run (story reply/mention, ref link). */
+    event?: { kind: "story_reply" | "story_mention" | "ref_url"; ref?: string; storyId?: string };
     text?: string;
     postbackPayload?: string;
     quickReplyPayload?: string;

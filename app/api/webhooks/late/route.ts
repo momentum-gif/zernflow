@@ -128,6 +128,18 @@ async function handleWebhook(request: NextRequest) {
     return handleCommentWebhook(parsed as CommentWebhookPayload, body, signature, eventId);
   }
 
+  // A ref link (ig.me/m/<user>?ref=...) that opens a conversation without a
+  // message arrives as referral.received; run it through the message path with
+  // no text so the "URL de referencia" trigger can answer it.
+  if (parsed.event === "referral.received") {
+    const normalized = normalizeReferralPayload(parsed as Record<string, unknown>);
+    if (!normalized) {
+      console.warn("[webhook] referral.received with unexpected shape", Object.keys(parsed));
+      return NextResponse.json({ ok: true, skipped: true, reason: "unrecognized_referral" });
+    }
+    parsed = normalized as unknown as { event?: string; id?: string };
+  }
+
   // Everything else besides message.received is acknowledged and ignored
   if (parsed.event !== "message.received") {
     return NextResponse.json({ ok: true, skipped: true });
@@ -269,7 +281,10 @@ async function processMessageEvent(
   // ── Flow engine ───────────────────────────────────────────────────────────
 
   if (!conversation.is_automation_paused) {
+    const dmEvent = detectDmEvent(payload);
+    if (dmEvent) console.log("[webhook] Instagram DM event", dmEvent);
     const incomingMessage = {
+      event: dmEvent ?? undefined,
       text: msg.text || undefined,
       postbackPayload: metadata?.postbackPayload || undefined,
       quickReplyPayload: metadata?.quickReplyPayload || undefined,
@@ -429,4 +444,100 @@ async function handleGlobalKeywords(
   }
 
   return false;
+}
+
+// ── Instagram DM events (story reply / story mention / ref link) ─────────────
+
+type DmEvent = { kind: "story_reply" | "story_mention" | "ref_url"; ref?: string; storyId?: string };
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : null;
+}
+
+/**
+ * Zernio forwards Meta's Instagram messaging fields, but the exact keys are not
+ * fully documented, so this checks every shape seen in Meta/Zernio payloads.
+ */
+function detectDmEvent(payload: WebhookPayload): DmEvent | null {
+  const meta = (asRecord(payload.metadata) ?? {}) as Record<string, unknown>;
+  const msg = asRecord(payload.message) ?? {};
+  const top = asRecord(payload as unknown) ?? {};
+
+  // Ref link: metadata.referral (with a message) or a top-level referral.
+  const referral = asRecord(meta.referral) ?? asRecord(msg.referral) ?? asRecord(top.referral);
+  const ref =
+    (referral && (referral.ref ?? referral.refParam ?? referral.ref_param)) ?? meta.ref ?? null;
+  if (typeof ref === "string" && ref.trim()) return { kind: "ref_url", ref: ref.trim() };
+
+  const attachments = Array.isArray(msg.attachments) ? (msg.attachments as Array<Record<string, unknown>>) : [];
+  const types = attachments.map((a) => String(a?.type ?? "").toLowerCase());
+
+  // Story mention: attachment type story_mention (Meta) or a metadata flag.
+  if (
+    types.some((t) => t.includes("story_mention") || t === "mention") ||
+    meta.storyMention ||
+    meta.isStoryMention === true ||
+    String(meta.messageType ?? meta.type ?? "").toLowerCase() === "story_mention"
+  ) {
+    return { kind: "story_mention" };
+  }
+
+  // Story reply: reply_to.story (Meta), surfaced under several names.
+  const replyTo = asRecord(meta.replyTo) ?? asRecord(meta.reply_to) ?? asRecord(msg.replyTo) ?? asRecord(msg.reply_to);
+  const story =
+    asRecord(meta.storyReply) ??
+    asRecord(meta.story) ??
+    asRecord(replyTo?.story) ??
+    asRecord(msg.storyReply) ??
+    null;
+  if (
+    story ||
+    meta.isStoryReply === true ||
+    meta.storyReply === true ||
+    msg.storyReply === true ||
+    types.some((t) => t === "story" || t === "ig_story" || t === "story_reply")
+  ) {
+    const storyId = story && (story.id ?? story.storyId);
+    return { kind: "story_reply", storyId: typeof storyId === "string" ? storyId : undefined };
+  }
+
+  return null;
+}
+
+/** Shape a referral.received event like message.received (no text). */
+function normalizeReferralPayload(raw: Record<string, unknown>): WebhookPayload | null {
+  const conv = asRecord(raw.conversation);
+  const account = asRecord(raw.account);
+  const referral = asRecord(raw.referral) ?? asRecord(asRecord(raw.metadata)?.referral);
+  const sender =
+    asRecord(raw.sender) ?? asRecord(raw.contact) ?? asRecord(asRecord(raw.message)?.sender);
+  const senderId = (sender?.id as string | undefined) ?? (conv?.participantId as string | undefined);
+  const accountId = (account?.id as string | undefined) ?? (account?.accountId as string | undefined);
+  if (!conv || !accountId || !senderId || !referral) return null;
+
+  return {
+    id: raw.id as string | undefined,
+    event: "message.received",
+    message: {
+      id: (raw.id as string) ?? `ref_${senderId}`,
+      conversationId: conv.id as string,
+      platform: (account?.platform as string) ?? "instagram",
+      platformMessageId: "",
+      direction: "incoming",
+      text: null,
+      attachments: [],
+      sender: {
+        id: senderId,
+        name: (sender?.name as string) ?? (conv.participantName as string) ?? senderId,
+        username: (sender?.username as string) ?? (conv.participantUsername as string) ?? null,
+        picture: (sender?.picture as string) ?? (conv.participantPicture as string) ?? null,
+      },
+      sentAt: (raw.timestamp as string) ?? new Date().toISOString(),
+      isRead: false,
+    },
+    conversation: conv as unknown as WebhookPayload["conversation"],
+    account: { ...(account as object), id: accountId } as WebhookPayload["account"],
+    metadata: { referral } as unknown as WebhookPayload["metadata"],
+    timestamp: (raw.timestamp as string) ?? new Date().toISOString(),
+  };
 }

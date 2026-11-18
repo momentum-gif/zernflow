@@ -16,6 +16,17 @@ type BuilderTriggerType = (typeof BUILDER_TRIGGER_TYPES)[number];
 const isBuilderTriggerType = (t: string): t is BuilderTriggerType =>
   (BUILDER_TRIGGER_TYPES as readonly string[]).includes(t);
 
+/**
+ * Instagram DM events that have their own trigger in the builder (like
+ * ManyChat) but are stored as `keyword` rows tagged with `config.kind`, so no
+ * database migration is needed. The matcher only fires a row with a kind when
+ * the incoming message is that kind of event.
+ */
+export const DM_EVENT_KINDS = ["story_reply", "story_mention", "ref_url"] as const;
+export type DmEventKind = (typeof DM_EVENT_KINDS)[number];
+const isDmEventKind = (t: string): t is DmEventKind =>
+  (DM_EVENT_KINDS as readonly string[]).includes(t);
+
 export interface DesiredTrigger {
   flow_id: string;
   channel_id: null;
@@ -42,7 +53,34 @@ export function buildDesiredTriggers(
     .flatMap((n) => {
       const data = (n.data ?? {}) as Record<string, any>;
       const nodeConfig = (data.config ?? {}) as Record<string, any>;
-      const type = (data.triggerType ?? "keyword") as string;
+      const nodeType = (data.triggerType ?? "keyword") as string;
+
+      if (isDmEventKind(nodeType)) {
+        const kindConfig: Record<string, any> = { kind: nodeType, nodeId: n.id };
+        if (nodeType === "story_reply") {
+          kindConfig.anyComment = data.anyComment !== false;
+          kindConfig.keywords = Array.isArray(data.keywords) ? data.keywords : [];
+          if (Array.isArray(data.excludeKeywords) && data.excludeKeywords.length > 0) {
+            kindConfig.excludeKeywords = data.excludeKeywords;
+          }
+        }
+        if (nodeType === "ref_url") {
+          kindConfig.ref = typeof data.ref === "string" ? data.ref.trim() : "";
+          if (!kindConfig.ref) return [];
+        }
+        return [
+          {
+            flow_id: flowId,
+            channel_id: null,
+            type: "keyword" as TriggerType,
+            config: kindConfig,
+            is_active: true,
+            priority: 0,
+          },
+        ];
+      }
+
+      const type = nodeType;
       if (!isBuilderTriggerType(type)) return [];
 
       // The trigger panel stores keywords as data.keywords ([{ value, matchType }]);
@@ -77,6 +115,8 @@ export function buildDesiredTriggers(
         const payload = data.payload ?? nodeConfig.payload;
         if (payload !== undefined) config.payload = payload;
       }
+      // Lets the engine start the flow at exactly the trigger node that fired.
+      config.nodeId = n.id;
 
       const row: DesiredTrigger = {
         flow_id: flowId,

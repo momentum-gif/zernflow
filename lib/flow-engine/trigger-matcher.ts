@@ -1,7 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 
+/** Instagram DM events that have their own triggers (see DM_EVENT_KINDS). */
+export interface IncomingDmEvent {
+  kind: "story_reply" | "story_mention" | "ref_url";
+  ref?: string;
+  storyId?: string;
+}
+
 interface IncomingMessage {
+  event?: IncomingDmEvent;
   text?: string;
   postbackPayload?: string;
   quickReplyPayload?: string;
@@ -42,6 +50,53 @@ export async function matchTrigger(
 
   if (!triggers || triggers.length === 0) return null;
 
+  const kindOf = (t: Trigger) => (t.config as { kind?: string } | null)?.kind;
+
+  // Ice breakers / main menu items saved from the "Básico" page carry
+  // "zf_flow:<flowId>": start that automation from its first trigger.
+  if (message.postbackPayload?.startsWith("zf_flow:")) {
+    const flowId = message.postbackPayload.slice("zf_flow:".length);
+    const match =
+      triggers.find((t) => t.flow_id === flowId && !kindOf(t)) ??
+      triggers.find((t) => t.flow_id === flowId);
+    if (match) return match;
+  }
+
+  // 0. Instagram DM events (story reply / story mention / ref link)
+  const event = message.event;
+  if (event?.kind === "ref_url" && event.ref) {
+    const ref = event.ref.toLowerCase().trim();
+    const match = triggers.find(
+      (t) =>
+        kindOf(t) === "ref_url" &&
+        ((t.config as { ref?: string }).ref ?? "").toLowerCase().trim() === ref
+    );
+    if (match) return match;
+    // A ref link that opened an empty conversation has nothing else to match.
+    if (!message.text) return null;
+  }
+  if (event?.kind === "story_mention") {
+    return triggers.find((t) => kindOf(t) === "story_mention") ?? null;
+  }
+  if (event?.kind === "story_reply") {
+    const text = (message.text ?? "").toLowerCase().trim();
+    const match = triggers.find((t) => {
+      if (kindOf(t) !== "story_reply") return false;
+      const c = t.config as {
+        anyComment?: boolean;
+        keywords?: Array<string | { value: string }>;
+        excludeKeywords?: string[];
+      };
+      if (c.excludeKeywords?.some((ex) => ex.trim() && text.includes(ex.toLowerCase().trim()))) return false;
+      if (c.anyComment) return true;
+      return (c.keywords ?? []).some((kw) => {
+        const v = (typeof kw === "string" ? kw : kw.value).toLowerCase().trim();
+        return v.length > 0 && text.includes(v);
+      });
+    });
+    if (match) return match;
+  }
+
   // Priority order: postback > quick_reply > keyword > welcome > default
   // 1. Check postback triggers
   if (message.postbackPayload) {
@@ -68,7 +123,7 @@ export async function matchTrigger(
   if (message.text) {
     const text = message.text.toLowerCase().trim();
 
-    for (const trigger of triggers.filter((t) => t.type === "keyword")) {
+    for (const trigger of triggers.filter((t) => t.type === "keyword" && !kindOf(t))) {
       const config = trigger.config as {
         keywords?: Array<string | { value: string; matchType?: "exact" | "contains" | "startsWith" }>;
         matchType?: "exact" | "contains" | "startsWith";
