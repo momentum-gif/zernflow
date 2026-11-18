@@ -11,6 +11,7 @@ import {
   Shuffle,
   Split,
   Hourglass,
+  LogIn,
   Cog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -158,6 +159,29 @@ export function ActionNode({ data, selected }: NodeProps) {
 
   const isAbSplit = actionType === "abSplit";
   const paths = isAbSplit ? nodeData.paths || [] : [];
+
+  // ManyChat "Iniciar Automatización": light-green header and the chosen automation.
+  if (actionType === "goToFlow") {
+    const name = (nodeData as { flowName?: string }).flowName;
+    return (
+      <div className={cn("w-56 rounded-2xl border-2 bg-card shadow-sm", selected ? "border-emerald-500 shadow-md" : "border-transparent ring-1 ring-border")}>
+        <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-border !bg-white" />
+        <div className="flex items-center gap-2 rounded-t-2xl bg-lime-200 px-3 py-2 text-foreground dark:bg-lime-900/60">
+          <LogIn className="h-3.5 w-3.5 text-lime-700" />
+          <p className="text-sm font-medium">{nodeData.label || "Iniciar Automatización"}</p>
+        </div>
+        <div className="px-3 pt-2.5">
+          <p className={cn("rounded-xl bg-muted/60 px-3 py-2 text-xs", !nodeData.flowId && "text-center text-muted-foreground")}>
+            {nodeData.flowId ? name || "Automatización seleccionada" : "Haz clic para seleccionar Automatización"}
+          </p>
+        </div>
+        <div className="relative flex items-center justify-end px-3 py-2">
+          <span className="text-[10px] text-muted-foreground">Siguiente paso</span>
+          <Handle type="source" position={Position.Right} className="!-right-[7px] !h-3 !w-3 !border-2 !border-border !bg-white" />
+        </div>
+      </div>
+    );
+  }
 
   // ManyChat "Pausa inteligente": red header, "Espera al menos N … y luego continúa de X a Y".
   if (actionType === "smartDelay") {

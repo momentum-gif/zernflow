@@ -202,10 +202,14 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
   if (isRandomizer) headerBg.action = "bg-[#e4dcfb] dark:bg-purple-900/60";
   const isSmartDelay = nodeType === "action" && (node.data as { actionType?: string }).actionType === "smartDelay";
   if (isSmartDelay) headerBg.action = "bg-red-200 dark:bg-red-900/60";
+  const isStartFlow = nodeType === "action" && (node.data as { actionType?: string }).actionType === "goToFlow";
+  if (isStartFlow) headerBg.action = "bg-lime-200 dark:bg-lime-900/60";
   const defaultTitle = isRandomizer
     ? "Aleatorizador"
     : isSmartDelay
       ? "Pausa inteligente"
+      : isStartFlow
+        ? "Iniciar Automatización"
     : nodeType === "aiResponse"
       ? "AI Step"
     : nodeType === "sendMessage"

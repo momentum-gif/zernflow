@@ -162,12 +162,14 @@ export function PreviewSimulator({
           (a) => `${ACTION_NAMES[a.type] ?? a.type}${a.tagName ? `: ${a.tagName}` : ""}`,
         );
         acc.push({ kind: "system", text: `⚡ ${names.join(" · ") || "Acciones"}` });
+      } else if (node.type === "action" && d.actionType === "goToFlow") {
+        acc.push({ kind: "system", text: `↪ Inicia la automatización "${d.flowName ?? "…"}"` });
       } else if (node.type === "action" && d.actionType === "smartDelay") {
         const sum = smartDelaySummary(d as SmartDelayData);
         acc.push({ kind: "system", text: `⏱ Pausa inteligente: ${sum.lead} ${sum.bold}${sum.tail}` });
       } else if (node.type === "action") {
         acc.push({ kind: "system", text: `⚡ ${ACTION_NAMES[d.actionType] ?? "Acción"}` });
-        if (d.actionType === "goToFlow" || d.actionType === "humanTakeover") break;
+        if (d.actionType === "humanTakeover") break;
       } else if (node.type === "delay") {
         acc.push({ kind: "system", text: `⏱ Retraso de ${d.duration ?? ""} ${d.unit ?? ""}` });
       } else if (node.type === "aiResponse") {

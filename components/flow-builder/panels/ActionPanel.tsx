@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { SmartDelayData } from "@/lib/smart-delay";
-import { Plus, X } from "lucide-react";
+import { Plus, X, LogIn } from "lucide-react";
+import { FlowPickerModal } from "./FlowPickerModal";
 import { cn } from "@/lib/utils";
 import type { NodeType } from "@/lib/types/database";
 import { useReactFlow } from "@xyflow/react";
@@ -57,7 +58,7 @@ export function ActionPanel({ data: rawData, onChange, nodeId }: ActionPanelProp
     case "httpRequest":
       return <HttpRequestConfig data={data} onChange={onChange} />;
     case "goToFlow":
-      return <GoToFlowConfig data={data} onChange={onChange} />;
+      return <GoToFlowConfig data={data} onChange={onChange} nodeId={nodeId ?? ""} />;
     case "subscribe":
     case "unsubscribe":
       return <SubscribeConfig data={data} onChange={onChange} />;
@@ -283,42 +284,31 @@ function HttpRequestConfig({ data, onChange }: ActionSubPanelProps) {
 }
 
 /* ───────── Go To Flow Config ───────── */
-function GoToFlowConfig({ data, onChange }: ActionSubPanelProps) {
+function GoToFlowConfig({ data, onChange, nodeId }: ActionSubPanelProps & { nodeId: string }) {
+  const [picking, setPicking] = useState(false);
+  const flowName = (data as { flowName?: string }).flowName;
   return (
     <div className="space-y-4">
-      <div>
-        <label className="mb-2 block text-xs font-semibold text-foreground">
-          Target Flow ID
-        </label>
-        <input
-          type="text"
-          value={data.flowId || ""}
-          onChange={(e) => onChange({ ...data, flowId: e.target.value })}
-          placeholder="Enter flow ID..."
-          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          The contact will be redirected to this flow.
-        </p>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <label className="relative inline-flex cursor-pointer items-center">
-          <input
-            type="checkbox"
-            checked={data.returnAfter || false}
-            onChange={(e) => onChange({ ...data, returnAfter: e.target.checked })}
-            className="peer sr-only"
-          />
-          <div className="peer h-5 w-9 rounded-full bg-muted after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-card after:transition-all peer-checked:bg-muted0 peer-checked:after:translate-x-full peer-focus:ring-2 peer-focus:ring-ring" />
-        </label>
-        <div>
-          <p className="text-sm font-medium text-foreground">Return after</p>
-          <p className="text-xs text-muted-foreground">
-            Come back to this flow after the target flow completes
-          </p>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={() => setPicking(true)}
+        className="flex w-full flex-col items-center gap-2 border-b border-border pb-5 pt-2 text-center"
+      >
+        {!data.flowId && <span className="self-start text-red-500">⚠</span>}
+        <LogIn className="h-6 w-6 text-foreground" />
+        <span className={cn("max-w-full truncate text-sm", data.flowId ? "font-medium" : "text-muted-foreground")}>
+          {data.flowId ? flowName || "Automatización seleccionada" : "Haz clic para seleccionar Automatización"}
+        </span>
+      </button>
+      <NextStepPicker nodeId={nodeId} variant="button" />
+      <FlowPickerModal
+        open={picking}
+        onClose={() => setPicking(false)}
+        onPick={(f) => {
+          onChange({ ...data, flowId: f.id, flowName: f.name });
+          setPicking(false);
+        }}
+      />
     </div>
   );
 }

@@ -1092,14 +1092,21 @@ async function executeGoToFlow(
   context: FlowExecutionContext,
   _sessionId: string
 ) {
-  // Execute the target flow
+  if (!data.flowId) return;
+  // ManyChat "Iniciar Automatización": the chosen automation starts from its first
+  // step (its own run), and this one continues with "Siguiente paso".
   await executeFlow(supabase, {
-    ...context,
+    triggerId: "manual",
     flowId: data.flowId,
+    channelId: context.channelId,
+    contactId: context.contactId,
+    conversationId: context.conversationId,
+    workspaceId: context.workspaceId,
+    lateConversationId: context.lateConversationId,
+    lateAccountId: context.lateAccountId,
+    incomingMessage: {},
   });
-  // If returnAfter is true, the current flow will continue after the target flow completes
-  // For now, we just stop the current traversal
-  return "pause";
+  return;
 }
 
 async function executeHumanTakeover(
