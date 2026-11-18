@@ -5,16 +5,16 @@ import {
   MessageSquare,
   GitBranch,
   Clock,
-  Tag,
+
   FileText,
-  Globe,
+
   ArrowRightLeft,
-  UserCheck,
-  Bell,
+
+
   Shuffle,
   Hourglass,
   Sparkles,
-  ListOrdered,
+
   StickyNote,
 } from "lucide-react";
 import type { DragEvent } from "react";
@@ -32,131 +32,40 @@ interface PaletteCategory {
   items: PaletteItem[];
 }
 
+// Same groups and order as ManyChat's "+" menu.
 const categories: PaletteCategory[] = [
   {
     name: "Paso inicial",
-    items: [
-      { type: "trigger", nodeType: "trigger", label: "Disparador", icon: Zap },
-    ],
+    items: [{ type: "trigger", nodeType: "trigger", label: "Disparador", icon: Zap }],
   },
   {
     name: "Contenido",
     items: [
-      {
-        type: "sendMessage",
-        nodeType: "sendMessage",
-        label: "Mensaje de Instagram",
-        icon: MessageSquare,
-      },
-      {
-        type: "action",
-        nodeType: "collectInput",
-        label: "Recopilación de datos",
-        icon: FileText,
-        actionType: "collectInput",
-      },
-      {
-        type: "aiResponse",
-        nodeType: "aiResponse",
-        label: "Respuesta con IA",
-        icon: Sparkles,
-      },
+      { type: "sendMessage", nodeType: "sendMessage", label: "Instagram", icon: MessageSquare },
+      { type: "action", nodeType: "collectInput", label: "Recopilación de datos", icon: FileText, actionType: "collectInput" },
+      { type: "action", nodeType: "goToFlow", label: "Iniciar automatización", icon: ArrowRightLeft, actionType: "goToFlow" },
     ],
+  },
+  {
+    name: "IA",
+    items: [{ type: "aiResponse", nodeType: "aiResponse", label: "AI Step", icon: Sparkles }],
   },
   {
     name: "Lógico",
     items: [
+      { type: "actions", nodeType: "actions", label: "Acciones", icon: Zap },
       { type: "condition", nodeType: "condition", label: "Condición", icon: GitBranch },
+      { type: "action", nodeType: "abSplit", label: "Aleatorizador", icon: Shuffle, actionType: "abSplit" },
+      { type: "action", nodeType: "smartDelay", label: "Pausa inteligente", icon: Hourglass, actionType: "smartDelay" },
       { type: "delay", nodeType: "delay", label: "Retraso", icon: Clock },
-      {
-        type: "action",
-        nodeType: "abSplit",
-        label: "Aleatorizador",
-        icon: Shuffle,
-        actionType: "abSplit",
-      },
-      {
-        type: "action",
-        nodeType: "smartDelay",
-        label: "Pausa inteligente",
-        icon: Hourglass,
-        actionType: "smartDelay",
-      },
-    ],
-  },
-  {
-    name: "Acciones",
-    items: [
-      {
-        type: "action",
-        nodeType: "addTag",
-        label: "Añadir etiqueta",
-        icon: Tag,
-        actionType: "addTag",
-      },
-      {
-        type: "action",
-        nodeType: "removeTag",
-        label: "Quitar etiqueta",
-        icon: Tag,
-        actionType: "removeTag",
-      },
-      {
-        type: "action",
-        nodeType: "setCustomField",
-        label: "Establecer campo",
-        icon: FileText,
-        actionType: "setCustomField",
-      },
-      {
-        type: "action",
-        nodeType: "httpRequest",
-        label: "Solicitud externa",
-        icon: Globe,
-        actionType: "httpRequest",
-      },
-      {
-        type: "action",
-        nodeType: "goToFlow",
-        label: "Iniciar automatización",
-        icon: ArrowRightLeft,
-        actionType: "goToFlow",
-      },
-      {
-        type: "action",
-        nodeType: "humanTakeover",
-        label: "Pasar a un humano",
-        icon: UserCheck,
-        actionType: "humanTakeover",
-      },
-      {
-        type: "action",
-        nodeType: "subscribe",
-        label: "Subscribe",
-        icon: Bell,
-        actionType: "subscribe",
-      },
-      {
-        type: "action",
-        nodeType: "unsubscribe",
-        label: "Unsubscribe",
-        icon: Bell,
-        actionType: "unsubscribe",
-      },
-      {
-        type: "action",
-        nodeType: "enrollSequence",
-        label: "Enroll in Sequence",
-        icon: ListOrdered,
-        actionType: "enrollSequence",
-      },
     ],
   },
   {
     name: "Extras",
     items: [{ type: "note", nodeType: "note", label: "Comentario", icon: StickyNote }],
-  }
+  },
 ];
+
 
 function onDragStart(event: DragEvent, item: PaletteItem) {
   const data = JSON.stringify({

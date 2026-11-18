@@ -52,7 +52,8 @@ export type NodeType =
   | "smartDelay"
   | "aiResponse"
   | "enrollSequence"
-  | "collectInput";
+  | "collectInput"
+  | "actions";
 
 export type SequenceStatus = "draft" | "active" | "paused";
 export type SequenceEnrollmentStatus = "active" | "completed" | "cancelled";

@@ -475,6 +475,8 @@ async function executeNode(
       return "pause";
     case "enrollSequence":
       return executeEnrollSequence(supabase, node.data as EnrollSequenceNodeData, context);
+    case "actions":
+      return executeActionList(supabase, node.data as unknown as ActionListNodeData, context, sessionId);
     case "collectInput": {
       // "Recopilación de datos": ask, then wait for the answer (see resumeSession).
       const d = node.data as unknown as CollectInputNodeData;
@@ -1272,4 +1274,141 @@ function emitContactEvent(
     sourceFlowId: context.flowId,
     chain: Number(context.variables?.__contact_event_chain ?? 0) || 0,
   });
+}
+
+/* ───────── "Acciones": one step that runs several actions, like ManyChat ───────── */
+
+export interface ActionListItem {
+  id?: string;
+  type:
+    | "addTag"
+    | "removeTag"
+    | "setCustomField"
+    | "clearCustomField"
+    | "deleteContact"
+    | "enrollSequence"
+    | "unenrollSequence"
+    | "httpRequest"
+    | "pauseAutomations"
+    | "openConversation"
+    | "closeConversation"
+    | "goToFlow";
+  tagName?: string;
+  fieldSlug?: string;
+  value?: string;
+  sequenceId?: string;
+  flowId?: string;
+  url?: string;
+  method?: string;
+  body?: string;
+  responseVariable?: string;
+}
+
+export interface ActionListNodeData {
+  actions?: ActionListItem[];
+}
+
+async function executeActionList(
+  supabase: SupabaseClient<Database>,
+  data: ActionListNodeData,
+  context: FlowExecutionContext,
+  sessionId: string
+): Promise<string | void> {
+  for (const a of data.actions ?? []) {
+    try {
+      switch (a.type) {
+        case "addTag":
+        case "removeTag":
+          if (a.tagName?.trim()) {
+            await executeTag(
+              supabase,
+              { action: a.type === "addTag" ? "add" : "remove", tagName: a.tagName.trim() },
+              context
+            );
+          }
+          break;
+        case "setCustomField":
+          if (a.fieldSlug) await executeSetField(supabase, { fieldSlug: a.fieldSlug, value: a.value ?? "" }, context);
+          break;
+        case "clearCustomField": {
+          if (!a.fieldSlug) break;
+          const { data: def } = await supabase
+            .from("custom_field_definitions")
+            .select("id")
+            .eq("workspace_id", context.workspaceId)
+            .eq("slug", a.fieldSlug)
+            .maybeSingle();
+          if (def) {
+            await supabase
+              .from("contact_custom_fields")
+              .delete()
+              .eq("contact_id", context.contactId)
+              .eq("field_id", def.id);
+            await emitContactEvent(supabase, context, "custom_field_changed", { fieldSlug: a.fieldSlug });
+          }
+          break;
+        }
+        case "deleteContact":
+          await supabase.from("contacts").delete().eq("id", context.contactId);
+          return "pause";
+        case "enrollSequence":
+          if (a.sequenceId) await executeEnrollSequence(supabase, { sequenceId: a.sequenceId }, context);
+          break;
+        case "unenrollSequence": {
+          if (!a.sequenceId) break;
+          const { data: rows } = await supabase
+            .from("sequence_enrollments")
+            .update({ status: "cancelled" })
+            .eq("contact_id", context.contactId)
+            .eq("sequence_id", a.sequenceId)
+            .eq("status", "active")
+            .select("id");
+          if (rows && rows.length > 0) {
+            await emitContactEvent(supabase, context, "sequence_unsubscribed", { sequenceId: a.sequenceId });
+          }
+          break;
+        }
+        case "httpRequest":
+          if (a.url) {
+            await executeHttpRequest(
+              {
+                method: (a.method as HttpRequestNodeData["method"]) || "POST",
+                url: a.url,
+                body: a.body,
+                responseVariable: a.responseVariable,
+              } as HttpRequestNodeData,
+              context
+            );
+            if (a.responseVariable) {
+              await supabase
+                .from("flow_sessions")
+                .update({ variables: (context.variables ?? {}) as Json })
+                .eq("id", sessionId);
+            }
+          }
+          break;
+        case "pauseAutomations":
+          await supabase
+            .from("conversations")
+            .update({ is_automation_paused: true })
+            .eq("id", context.conversationId);
+          break;
+        case "openConversation":
+        case "closeConversation":
+          await supabase
+            .from("conversations")
+            .update({ status: a.type === "openConversation" ? "open" : "closed" })
+            .eq("id", context.conversationId);
+          break;
+        case "goToFlow":
+          if (a.flowId) {
+            await executeGoToFlow(supabase, { flowId: a.flowId, returnAfter: false }, context, sessionId);
+            return "pause";
+          }
+          break;
+      }
+    } catch (err) {
+      console.error(`Action ${a.type} failed:`, err);
+    }
+  }
 }

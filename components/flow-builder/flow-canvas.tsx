@@ -39,6 +39,7 @@ import { TestPanel } from "./panels/TestPanel";
 type Flow = Database["public"]["Tables"]["flows"]["Row"];
 
 import { NoteNode } from "./nodes/note-node";
+import { ActionsNode } from "./nodes/actions-node";
 import { FlowStatsProvider } from "./flow-stats-context";
 import { PhonePreview } from "./phone-preview";
 
@@ -50,6 +51,7 @@ const nodeTypes: NodeTypes = {
   action: ActionNode,
   aiResponse: AiResponseNode,
   note: NoteNode,
+  actions: ActionsNode,
 };
 
 interface FlowCanvasProps {
@@ -73,6 +75,8 @@ function getDefaultData(type: string, actionType?: string): Record<string, unkno
       return { duration: 5, unit: "minutes" };
     case "note":
       return { text: "" };
+    case "actions":
+      return { actions: [] };
     case "aiResponse":
       return { systemPrompt: "", model: "openai/gpt-4o-mini", temperature: 0.7, maxTokens: 500, contextMessages: 10 };
     case "action":

@@ -10,6 +10,7 @@ import { SendMessagePanel } from "./SendMessagePanel";
 import { ConditionPanel } from "./ConditionPanel";
 import { DelayPanel } from "./DelayPanel";
 import { ActionPanel } from "./ActionPanel";
+import { ActionsListPanel } from "./ActionsListPanel";
 import { AiResponsePanel } from "./AiResponsePanel";
 
 interface NodeConfigSidebarProps {
@@ -75,37 +76,43 @@ function getFlowVariables({
 
 const nodeTypeConfig: Record<string, { label: string; icon: typeof Cog; color: string; borderColor: string }> = {
   trigger: {
-    label: "Trigger",
+    label: "Disparador",
     icon: Zap,
     color: "bg-emerald-500",
     borderColor: "border-emerald-500",
   },
   sendMessage: {
-    label: "Send Message",
+    label: "Mensaje de Instagram",
     icon: MessageSquare,
     color: "bg-blue-500",
     borderColor: "border-blue-500",
   },
   condition: {
-    label: "Condition",
+    label: "Condición",
     icon: GitBranch,
     color: "bg-amber-500",
     borderColor: "border-amber-500",
   },
   delay: {
-    label: "Delay",
+    label: "Retraso",
     icon: Clock,
     color: "bg-purple-500",
     borderColor: "border-purple-500",
   },
   aiResponse: {
-    label: "AI Response",
+    label: "Respuesta con IA",
     icon: Sparkles,
     color: "bg-violet-500",
     borderColor: "border-violet-500",
   },
+  actions: {
+    label: "Acciones",
+    icon: Zap,
+    color: "bg-amber-500",
+    borderColor: "border-amber-500",
+  },
   action: {
-    label: "Action",
+    label: "Acción",
     icon: Cog,
     color: "bg-muted0",
     borderColor: "border-muted-foreground",
@@ -163,6 +170,8 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
         return <AiResponsePanel data={data} onChange={handleChange} />;
       case "action":
         return <ActionPanel data={data} onChange={handleChange} />;
+      case "actions":
+        return <ActionsListPanel data={data} onChange={handleChange} />;
       default:
         return (
           <p className="text-sm text-muted-foreground">
