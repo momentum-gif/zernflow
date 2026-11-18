@@ -6,6 +6,7 @@ import { Send, Paperclip, Bot, User, MessageSquare, CheckCircle, Clock, RotateCc
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PlatformIcon } from "@/components/platform-icon";
+import { SendFlowBar } from "./send-flow-menu";
 import type { Database, ConversationStatus } from "@/lib/types/database";
 
 type Message = Database["public"]["Tables"]["messages"]["Row"];
@@ -391,6 +392,7 @@ export function MessageThread({
 
       {/* Composer */}
       <div className="border-t border-border p-4">
+        <SendFlowBar conversationId={conversation.id} workspaceId={conversation.workspace_id} />
         <div className="mx-auto flex max-w-2xl items-end gap-2">
           <div className="flex-1">
             <textarea
@@ -406,7 +408,7 @@ export function MessageThread({
                   handleSend();
                 }
               }}
-              placeholder="Type a message..."
+              placeholder="Escribe un mensaje…"
               rows={1}
               className="w-full resize-none rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               style={{ maxHeight: 150 }}
