@@ -39,6 +39,7 @@ import { TestPanel } from "./panels/TestPanel";
 type Flow = Database["public"]["Tables"]["flows"]["Row"];
 
 import { NoteNode } from "./nodes/note-node";
+import { getDefaultData, getNodeId } from "./flow-node-defaults";
 import { ActionsNode } from "./nodes/actions-node";
 import { FlowStatsProvider } from "./flow-stats-context";
 import { PhonePreview } from "./phone-preview";
@@ -56,37 +57,6 @@ const nodeTypes: NodeTypes = {
 
 interface FlowCanvasProps {
   flow: Flow;
-}
-
-let nodeId = 0;
-function getNodeId() {
-  return `node_${Date.now()}_${nodeId++}`;
-}
-
-function getDefaultData(type: string, actionType?: string): Record<string, unknown> {
-  switch (type) {
-    case "trigger":
-      return { triggerType: "keyword", keywords: [] };
-    case "sendMessage":
-      return { messages: [] };
-    case "condition":
-      return { conditions: [], logic: "and" };
-    case "delay":
-      return { duration: 5, unit: "minutes" };
-    case "note":
-      return { text: "" };
-    case "actions":
-      return { actions: [] };
-    case "aiResponse":
-      return { systemPrompt: "", model: "openai/gpt-4o-mini", temperature: 0.7, maxTokens: 500, contextMessages: 10 };
-    case "action":
-      if (actionType === "collectInput") {
-        return { actionType, question: "", inputType: "email", variableName: "email" };
-      }
-      return { actionType: actionType || "addTag" };
-    default:
-      return {};
-  }
 }
 
 function FlowCanvasInner({ flow }: FlowCanvasProps) {

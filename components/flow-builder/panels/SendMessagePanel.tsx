@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 import { Plus, X, GripVertical, Image, Type, MousePointer, MessageCircle, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NextStepPicker } from "./NextStepPicker";
 
 /** Hidden code that links a button to the step it is connected to (like ManyChat). */
 export function newButtonPayload() {
@@ -53,6 +54,8 @@ interface SendMessagePanelProps {
   data: Record<string, unknown>;
   onChange: (data: Record<string, unknown>) => void;
   availableVariables?: string[];
+  /** Builder step id, so buttons can pick and create their next step. */
+  nodeId?: string;
 }
 
 function VariablePicker({
@@ -84,7 +87,7 @@ function VariablePicker({
   );
 }
 
-export function SendMessagePanel({ data: rawData, onChange, availableVariables }: SendMessagePanelProps) {
+export function SendMessagePanel({ data: rawData, onChange, availableVariables, nodeId }: SendMessagePanelProps) {
   const data = rawData as SendMessagePanelData;
   const messages = data.messages || [];
 
@@ -119,6 +122,7 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables }
           onRemove={() => removeMessage(msgIndex)}
           canRemove={messages.length > 1}
           availableVariables={availableVariables}
+          nodeId={nodeId}
         />
       ))}
 
@@ -133,8 +137,14 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables }
 
       {messages.length === 0 && (
         <p className="text-center text-xs text-muted-foreground">
-          Add at least one message to send.
+          Añade al menos un mensaje.
         </p>
+      )}
+
+      {nodeId && (
+        <div className="rounded-lg border border-dashed border-border p-3">
+          <NextStepPicker nodeId={nodeId} label="Elegir siguiente paso" />
+        </div>
       )}
 
       {/* Platform hints */}
@@ -162,6 +172,7 @@ function MessageEditor({
   onRemove,
   canRemove,
   availableVariables,
+  nodeId,
 }: {
   index: number;
   message: Message;
@@ -169,6 +180,7 @@ function MessageEditor({
   onRemove: () => void;
   canRemove: boolean;
   availableVariables?: string[];
+  nodeId?: string;
 }) {
   const isCarouselMode = !!message.carousel;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -387,7 +399,7 @@ function MessageEditor({
                 <div className="flex items-center gap-1.5">
                   <MessageCircle className="h-3 w-3 text-muted-foreground/60" />
                   <label className="text-xs font-medium text-muted-foreground">
-                    Quick Replies
+                    Respuestas rápidas
                   </label>
                 </div>
                 <button
@@ -405,16 +417,22 @@ function MessageEditor({
                     type="text"
                     value={qr.title}
                     onChange={(e) => updateQuickReply(i, { ...qr, title: e.target.value })}
-                    placeholder="Label"
+                    placeholder="Texto de la respuesta"
                     className="flex-1 rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
-                  <input
-                    type="text"
-                    value={qr.payload}
-                    onChange={(e) => updateQuickReply(i, { ...qr, payload: e.target.value })}
-                    placeholder="Payload"
-                    className="flex-1 rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+                  {nodeId && qr.payload ? (
+                    <div className="flex-1">
+                      <NextStepPicker nodeId={nodeId} handle={`btn:${qr.payload}`} label="Al tocarla" />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={qr.payload}
+                      onChange={(e) => updateQuickReply(i, { ...qr, payload: e.target.value })}
+                      placeholder="Código"
+                      className="flex-1 rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => removeQuickReply(i)}
@@ -432,7 +450,7 @@ function MessageEditor({
                 <div className="flex items-center gap-1.5">
                   <MousePointer className="h-3 w-3 text-muted-foreground/60" />
                   <label className="text-xs font-medium text-muted-foreground">
-                    Buttons
+                    Botones
                   </label>
                 </div>
                 <button
@@ -454,7 +472,7 @@ function MessageEditor({
                       type="text"
                       value={btn.title}
                       onChange={(e) => updateButton(i, { ...btn, title: e.target.value })}
-                      placeholder="Button label"
+                      placeholder="Título del botón"
                       className="flex-1 rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <button
@@ -465,38 +483,45 @@ function MessageEditor({
                       <X className="h-3 w-3" />
                     </button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={btn.type}
-                      onChange={(e) => {
-                        const type = e.target.value as "postback" | "url";
-                        updateButton(i, {
-                          ...btn,
-                          type,
-                          payload: type === "postback" ? btn.payload || newButtonPayload() : undefined,
-                          url: type === "url" ? btn.url || "" : undefined,
-                        });
-                      }}
-                      className="rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="postback">Postback</option>
-                      <option value="url">URL</option>
-                    </select>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="mb-1 text-[11px] text-muted-foreground">Cuando se presiona este botón</p>
+                      <select
+                        value={btn.type}
+                        onChange={(e) => {
+                          const type = e.target.value as "postback" | "url";
+                          updateButton(i, {
+                            ...btn,
+                            type,
+                            payload: type === "postback" ? btn.payload || newButtonPayload() : undefined,
+                            url: type === "url" ? btn.url || "" : undefined,
+                          });
+                        }}
+                        className="w-full rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="postback">Ir a un paso de la automatización</option>
+                        <option value="url">Abrir sitio web</option>
+                      </select>
+                    </div>
                     {btn.type === "postback" ? (
-                      <input
-                        type="text"
-                        value={btn.payload || ""}
-                        onChange={(e) => updateButton(i, { ...btn, payload: e.target.value })}
-                        placeholder="Payload value"
-                        className="flex-1 rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
+                      nodeId && btn.payload ? (
+                        <NextStepPicker nodeId={nodeId} handle={`btn:${btn.payload}`} label="Siguiente paso" />
+                      ) : (
+                        <input
+                          type="text"
+                          value={btn.payload || ""}
+                          onChange={(e) => updateButton(i, { ...btn, payload: e.target.value })}
+                          placeholder="Código del botón"
+                          className="w-full rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      )
                     ) : (
                       <input
                         type="url"
                         value={btn.url || ""}
                         onChange={(e) => updateButton(i, { ...btn, url: e.target.value })}
-                        placeholder="https://..."
-                        className="flex-1 rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="https://yourwebsite.com"
+                        className="w-full rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
                     )}
                   </div>

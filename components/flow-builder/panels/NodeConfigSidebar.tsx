@@ -160,6 +160,7 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
             data={data}
             onChange={handleChange}
             availableVariables={getFlowVariables({ node, nodes, edges })}
+            nodeId={node.id}
           />
         );
       case "condition":
