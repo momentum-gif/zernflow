@@ -365,6 +365,12 @@ export function MessageThread({
       {/* Messages */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
         <div className="mx-auto max-w-2xl space-y-4">
+          {messages.length === 0 && (
+            <p className="py-16 text-center text-sm text-muted-foreground">
+              Todavía no hay mensajes directos con este contacto. Si solo comentó una publicación, el chat
+              aparecerá aquí en cuanto se envíe o reciba el primer DM.
+            </p>
+          )}
           {messages.map((message, i) => (
             <div key={message.id}>
               {shouldShowDateSeparator(message, messages[i - 1]) && (

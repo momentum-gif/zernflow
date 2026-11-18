@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
     .eq("id", conversationId)
     .single();
 
-  if (!conversation?.late_conversation_id) {
-    return NextResponse.json({ error: "Conversation not found or missing Zernio ID" }, { status: 404 });
+  if (!conversation) {
+    return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
   }
 
   const { data: workspace } = await supabase
@@ -46,11 +46,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Channel not found" }, { status: 404 });
   }
 
+  // Conversations that started from a comment have no Zernio conversation id
+  // until we look it up: find the DM thread with this contact and remember it.
+  let lateConversationId = conversation.late_conversation_id as string | null;
+  if (!lateConversationId) {
+    lateConversationId = await findZernioConversation(
+      supabase,
+      workspace.late_api_key_encrypted,
+      channel.late_account_id,
+      conversationId,
+    );
+    if (!lateConversationId) return NextResponse.json([]);
+  }
+
   // Fetch messages from Zernio API
   try {
     const zernio = createZernioClient(workspace.late_api_key_encrypted);
     const res = await zernio.messages.getInboxConversationMessages({
-      path: { conversationId: conversation.late_conversation_id },
+      path: { conversationId: lateConversationId },
       query: { accountId: channel.late_account_id },
     });
 
@@ -64,7 +77,11 @@ export async function GET(request: NextRequest) {
     const messages = zernioMessages.map((m: any) => ({
       id: m.id,
       conversation_id: conversationId,
-      direction: m.direction === "outbound" ? "outbound" : "inbound",
+      // Zernio says "incoming" / "outgoing"; older payloads used inbound / outbound.
+      direction:
+        m.direction === "outbound" || m.direction === "outgoing" || m.isOutgoing === true || m.fromMe === true
+          ? "outbound"
+          : "inbound",
       text: m.text ?? m.message ?? null,
       attachments: m.attachments?.length ? m.attachments : null,
       quick_reply_payload: null,
@@ -188,5 +205,48 @@ export async function POST(request: NextRequest) {
       { error: `Failed to send message: ${error}` },
       { status: 500 }
     );
+  }
+}
+
+async function findZernioConversation(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  apiKey: string,
+  accountId: string,
+  conversationId: string,
+): Promise<string | null> {
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("contact_id, channel_id")
+    .eq("id", conversationId)
+    .single();
+  if (!conv) return null;
+  const { data: link } = await supabase
+    .from("contact_channels")
+    .select("platform_sender_id, platform_username")
+    .eq("contact_id", conv.contact_id)
+    .eq("channel_id", conv.channel_id)
+    .maybeSingle();
+  if (!link?.platform_sender_id) return null;
+
+  try {
+    const res = await fetch(
+      `https://zernio.com/api/v1/inbox/conversations?accountId=${encodeURIComponent(accountId)}&limit=100`,
+      { headers: { Authorization: `Bearer ${apiKey}` }, cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as Record<string, unknown>;
+    const list = ((body.conversations ?? body.data ?? []) as Array<Record<string, unknown>>) || [];
+    const match = list.find(
+      (c) =>
+        c.participantId === link.platform_sender_id ||
+        (link.platform_username && c.participantUsername === link.platform_username),
+    );
+    const id = match && typeof match.id === "string" ? match.id : null;
+    if (id) {
+      await supabase.from("conversations").update({ late_conversation_id: id }).eq("id", conversationId);
+    }
+    return id;
+  } catch {
+    return null;
   }
 }
