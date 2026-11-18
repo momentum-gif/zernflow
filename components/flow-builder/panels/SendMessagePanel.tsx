@@ -132,7 +132,7 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
         className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-blue-400 hover:text-blue-500"
       >
         <Plus className="h-4 w-4" />
-        Add Message
+        Añadir mensaje
       </button>
 
       {messages.length === 0 && (
@@ -149,15 +149,14 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
 
       {/* Platform hints */}
       <div className="rounded-lg border border-border bg-muted p-3">
-        <p className="text-xs font-medium text-muted-foreground">Platform notes</p>
+        <p className="text-xs font-medium text-muted-foreground">Notas de Instagram</p>
         <ul className="mt-1.5 space-y-1 text-[11px] text-muted-foreground">
-          <li>Facebook/Instagram/WhatsApp: Max 3 buttons per message</li>
-          <li>Telegram: Buttons appear as inline keyboards</li>
-          <li>Quick replies disappear after user responds</li>
-          <li>Carousels: Native on Facebook/Instagram, text fallback elsewhere</li>
+          <li>Máximo 3 botones por mensaje</li>
+                    <li>Las respuestas rápidas desaparecen cuando la persona responde y solo van después de un texto sin botones</li>
+          <li>Galería: hasta 10 tarjetas con imagen y botones</li>
           <li>
-            WhatsApp: Meta only accepts free-form messages within 24h of the
-            contact&apos;s last message
+            Instagram solo deja escribir libremente dentro de las 24 h desde el
+            último mensaje de la persona
           </li>
         </ul>
       </div>
@@ -273,7 +272,7 @@ function MessageEditor({
         <div className="flex items-center gap-2">
           <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60" />
           <span className="text-xs font-semibold text-muted-foreground">
-            Message {index + 1}
+            Mensaje {index + 1}
           </span>
         </div>
         {canRemove && (
@@ -300,7 +299,7 @@ function MessageEditor({
           )}
         >
           <Type className="h-3 w-3" />
-          Text
+          Texto
         </button>
         <button
           type="button"
@@ -313,7 +312,7 @@ function MessageEditor({
           )}
         >
           <LayoutGrid className="h-3 w-3" />
-          Carousel
+          Galería
         </button>
       </div>
 
@@ -329,13 +328,13 @@ function MessageEditor({
             <div>
               <div className="mb-1.5 flex items-center gap-1.5">
                 <Type className="h-3 w-3 text-muted-foreground/60" />
-                <label className="text-xs font-medium text-muted-foreground">Text</label>
+                <label className="text-xs font-medium text-muted-foreground">Texto</label>
               </div>
               <textarea
                 ref={textareaRef}
                 value={message.text || ""}
                 onChange={(e) => onChange({ ...message, text: e.target.value })}
-                placeholder="Type your message... Insert variables below"
+                placeholder="Introduce tu texto…"
                 rows={3}
                 className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
@@ -355,7 +354,7 @@ function MessageEditor({
             <div>
               <div className="mb-1.5 flex items-center gap-1.5">
                 <Image className="h-3 w-3 text-muted-foreground/60" />
-                <label className="text-xs font-medium text-muted-foreground">Media URL</label>
+                <label className="text-xs font-medium text-muted-foreground">URL del archivo (imagen, video o audio)</label>
               </div>
               <div className="flex gap-2">
                 <select
@@ -368,7 +367,7 @@ function MessageEditor({
                   }
                   className="rounded-lg border border-border bg-card px-2 py-2 text-sm text-foreground focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="image">Image</option>
+                  <option value="image">Imagen</option>
                   <option value="video">Video</option>
                   <option value="audio">Audio</option>
                 </select>
@@ -408,7 +407,7 @@ function MessageEditor({
                   className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-blue-500 hover:bg-blue-50"
                 >
                   <Plus className="h-3 w-3" />
-                  Add
+                  Añadir
                 </button>
               </div>
               {(message.quickReplies || []).map((qr, i) => (
@@ -459,7 +458,7 @@ function MessageEditor({
                   className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-blue-500 hover:bg-blue-50"
                 >
                   <Plus className="h-3 w-3" />
-                  Add
+                  Añadir
                 </button>
               </div>
               {(message.buttons || []).map((btn, i) => (
@@ -581,7 +580,7 @@ function CarouselEditor({
           className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-blue-500 hover:bg-blue-50"
         >
           <Plus className="h-3 w-3" />
-          Add Card
+          Añadir tarjeta
         </button>
       </div>
 
@@ -668,7 +667,7 @@ function CarouselCardEditor({
         <div>
           <div className="mb-1 flex items-center gap-1">
             <Image className="h-2.5 w-2.5 text-muted-foreground/60" />
-            <label className="text-[11px] font-medium text-muted-foreground">Image URL</label>
+            <label className="text-[11px] font-medium text-muted-foreground">URL de la imagen</label>
           </div>
           <input
             type="url"
@@ -684,13 +683,13 @@ function CarouselCardEditor({
         {/* Title */}
         <div>
           <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
-            Title
+            Título
           </label>
           <input
             type="text"
             value={element.title}
             onChange={(e) => onChange({ ...element, title: e.target.value })}
-            placeholder="Card title (max 80 chars)"
+            placeholder="Título (máx. 80 caracteres)"
             maxLength={80}
             className="w-full rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
@@ -699,7 +698,7 @@ function CarouselCardEditor({
         {/* Subtitle */}
         <div>
           <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
-            Subtitle
+            Subtítulo
           </label>
           <input
             type="text"
@@ -707,7 +706,7 @@ function CarouselCardEditor({
             onChange={(e) =>
               onChange({ ...element, subtitle: e.target.value || undefined })
             }
-            placeholder="Card subtitle"
+            placeholder="Subtítulo"
             className="w-full rounded border border-border bg-card px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
@@ -744,7 +743,7 @@ function CarouselCardEditor({
                   onChange={(e) =>
                     updateButton(i, { ...btn, title: e.target.value })
                   }
-                  placeholder="Button label"
+                  placeholder="Título del botón"
                   className="flex-1 rounded border border-border bg-card px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button
@@ -770,8 +769,8 @@ function CarouselCardEditor({
                   }}
                   className="rounded border border-border bg-card px-1.5 py-1 text-[11px] text-foreground focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="postback">Postback</option>
-                  <option value="url">URL</option>
+                  <option value="postback">Ir a un paso</option>
+                  <option value="url">Abrir sitio web</option>
                 </select>
                 {btn.type === "postback" ? (
                   <input
@@ -780,7 +779,7 @@ function CarouselCardEditor({
                     onChange={(e) =>
                       updateButton(i, { ...btn, payload: e.target.value })
                     }
-                    placeholder="Payload value"
+                    placeholder="Código del botón"
                     className="flex-1 rounded border border-border bg-card px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 ) : (
