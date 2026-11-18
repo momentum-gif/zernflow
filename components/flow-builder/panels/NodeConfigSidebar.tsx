@@ -182,58 +182,47 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
     }
   }
 
-  return (
-    <div
-      className={cn(
-        "flex w-80 flex-col border-l bg-card",
-        config.borderColor
-      )}
-      style={{ borderLeftWidth: "3px" }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <div className={cn("rounded-md p-1.5 text-white", config.color)}>
-            <Icon className="h-3.5 w-3.5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">{config.label}</p>
-            <p className="text-[11px] text-muted-foreground">
-              ID: {node.id.slice(0, 12)}...
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => onDelete(node.id)}
-            className="rounded-lg p-1.5 text-muted-foreground/60 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-500"
-            title="Delete node"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+  // ManyChat colours the editor header by step type.
+  const headerBg: Record<string, string> = {
+    trigger: "bg-emerald-100 dark:bg-emerald-950/50",
+    sendMessage: "bg-fuchsia-100 dark:bg-fuchsia-950/50",
+    actions: "bg-amber-100 dark:bg-amber-950/50",
+    condition: "bg-cyan-100 dark:bg-cyan-950/50",
+    aiResponse: "bg-violet-100 dark:bg-violet-950/50",
+    delay: "bg-red-100 dark:bg-red-950/50",
+    action: "bg-lime-100 dark:bg-lime-950/50",
+  };
+  const defaultTitle =
+    nodeType === "sendMessage" ? "Enviar mensaje" : nodeType === "trigger" ? "Disparador" : config.label;
 
-      {/* Node Label */}
-      <div className="border-b border-border px-4 py-3">
-        <label className="mb-1.5 block text-xs font-semibold text-foreground">
-          Node Name
-        </label>
+  return (
+    <div className="flex w-[360px] shrink-0 flex-col border-r border-border bg-card shadow-lg">
+      {/* Header */}
+      <div className={cn("flex items-center gap-2 px-3 py-3", headerBg[nodeType] ?? "bg-muted")}>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-1.5 text-foreground/70 hover:bg-black/5"
+          aria-label="Cerrar"
+        >
+          <X className="h-4 w-4" />
+        </button>
         <input
           type="text"
-          value={(node.data as Record<string, unknown>).label as string || ""}
+          value={((node.data as Record<string, unknown>).label as string) || ""}
           onChange={(e) => handleLabelChange(e.target.value)}
-          placeholder={config.label}
-          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+          placeholder={defaultTitle}
+          className="min-w-0 flex-1 bg-transparent text-center text-lg font-bold text-foreground placeholder:text-foreground focus:outline-none"
+          title="Cambiar el nombre del paso"
         />
+        <button
+          type="button"
+          onClick={() => onDelete(node.id)}
+          className="rounded-lg p-1.5 text-foreground/50 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+          title="Eliminar paso"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Panel Content */}

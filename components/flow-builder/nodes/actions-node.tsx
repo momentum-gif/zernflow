@@ -20,16 +20,14 @@ export function ActionsNode({ data, selected }: NodeProps) {
       )}
     >
       <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-border !bg-white" />
-      <div className="flex items-center gap-2 px-3 pt-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/40">
-          <Zap className="h-3.5 w-3.5" />
-        </span>
+      <div className="flex items-center gap-2 rounded-t-2xl bg-amber-200 px-3 py-2 text-amber-950 dark:bg-amber-800 dark:text-amber-50">
+        <Zap className="h-3.5 w-3.5" />
         <p className="text-sm font-semibold">{label}</p>
       </div>
       <div className="space-y-1 p-3">
         {actions.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border px-3 py-2 text-center text-xs text-muted-foreground">
-            + Acción
+            Haga clic para añadir una acción
           </div>
         ) : (
           actions.map((a, i) => (

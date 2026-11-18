@@ -1,6 +1,7 @@
 "use client";
 
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
+import { getNodeId } from "../flow-node-defaults";
 import { Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,8 +32,33 @@ const triggerLabels: Record<string, string> = {
   comment_keyword: "El usuario comenta tu publicación o Reel",
 };
 
-export function TriggerNode({ data, selected }: NodeProps) {
+export function TriggerNode({ id, data, selected }: NodeProps) {
+  const { getNode, getEdges, setNodes, setEdges } = useReactFlow();
   const nodeData = data as TriggerNodeProps;
+
+  // "+ Nuevo disparador": another way to start this same automation.
+  function addTrigger(e: React.MouseEvent) {
+    e.stopPropagation();
+    const self = getNode(id);
+    const target = getEdges().find((ed) => ed.source === id)?.target;
+    const newId = getNodeId();
+    setNodes((nds) => [
+      ...nds,
+      {
+        id: newId,
+        type: "trigger",
+        position: { x: self?.position.x ?? 0, y: (self?.position.y ?? 0) + 200 },
+        data: { triggerType: "keyword", keywords: [] },
+        selected: true,
+      },
+    ]);
+    if (target) {
+      setEdges((eds) => [
+        ...eds,
+        { id: `e_${newId}_${target}`, source: newId, target, animated: true, style: { stroke: "var(--border)", strokeWidth: 2 } },
+      ]);
+    }
+  }
   const triggerType = nodeData.triggerType || "keyword";
   const title = triggerLabels[triggerType] || "Disparador";
   const d = data as Record<string, unknown>;
@@ -64,6 +90,12 @@ export function TriggerNode({ data, selected }: NodeProps) {
           {nodeData.label && <p className="mt-0.5 text-[11px] text-muted-foreground">{nodeData.label}</p>}
           {detail && <p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p>}
         </div>
+        <button
+          onClick={addTrigger}
+          className="nodrag mt-2 w-full rounded-xl border border-dashed border-border py-2 text-xs font-medium text-blue-600 hover:border-blue-400"
+        >
+          + Nuevo disparador
+        </button>
       </div>
       <div className="relative flex items-center justify-end border-t border-border px-3 py-2">
         <span className="text-[10px] text-muted-foreground">Entonces</span>

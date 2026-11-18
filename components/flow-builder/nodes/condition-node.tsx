@@ -46,15 +46,13 @@ export function ConditionNode({ data, selected }: NodeProps) {
   return (
     <div className={cn("w-60 rounded-2xl border bg-card shadow-sm", selected ? "border-sky-500 shadow-md" : "border-border")}>
       <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-border !bg-white" />
-      <div className="flex items-center gap-2 px-3 pt-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-sky-600 dark:bg-sky-900/40">
-          <Filter className="h-3.5 w-3.5" />
-        </span>
+      <div className="flex items-center gap-2 rounded-t-2xl bg-cyan-200 px-3 py-2 text-cyan-950 dark:bg-cyan-800 dark:text-cyan-50">
+        <Filter className="h-3.5 w-3.5" />
         <p className="text-sm font-semibold">{nodeData.label || "Condición"}</p>
       </div>
       <div className="space-y-1 p-3">
         {conditions.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border px-3 py-2 text-center text-xs text-muted-foreground">+ Condición</p>
+          <p className="rounded-xl border border-dashed border-border px-3 py-2 text-center text-xs text-muted-foreground">Haga clic para añadir una condición</p>
         ) : (
           conditions.slice(0, 3).map((c, i) => (
             <p key={i} className="truncate rounded-lg bg-sky-50 px-2.5 py-1.5 text-xs text-sky-900 dark:bg-sky-950/30 dark:text-sky-200">

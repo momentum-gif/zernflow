@@ -19,7 +19,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Copy, Save, Rocket, Loader2, History, Play, Download, Trash2, MoreVertical, Undo2 } from "lucide-react";
+import { ChevronRight, Copy, Redo2, Rocket, Loader2, History, Play, Download, Trash2, MoreVertical, Undo2 } from "lucide-react";
 import { refreshButtonPayloads } from "@/lib/flow-payloads";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -34,7 +34,6 @@ import { ActionNode } from "./nodes/action-node";
 import { AiResponseNode } from "./nodes/AiResponseNode";
 import { NodeConfigSidebar } from "./panels/NodeConfigSidebar";
 import { VersionHistoryPanel } from "./panels/VersionHistoryPanel";
-import { TestPanel } from "./panels/TestPanel";
 
 type Flow = Database["public"]["Tables"]["flows"]["Row"];
 
@@ -42,7 +41,8 @@ import { NoteNode } from "./nodes/note-node";
 import { getDefaultData, getNodeId } from "./flow-node-defaults";
 import { ActionsNode } from "./nodes/actions-node";
 import { FlowStatsProvider } from "./flow-stats-context";
-import { PhonePreview } from "./phone-preview";
+import { PreviewSimulator } from "./preview-simulator";
+import { ConnectDropMenu, type PendingConnection } from "./connect-drop-menu";
 import { CanvasControls, arrangeNodes } from "./add-step-menu";
 
 const nodeTypes: NodeTypes = {
@@ -85,6 +85,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const selectedNode = selectedNodeId
@@ -92,7 +93,6 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
     : null;
 
   // ManyChat-style phone preview for message steps and the comment trigger.
-  const [previewHidden, setPreviewHidden] = useState(false);
   const [igUsername, setIgUsername] = useState<string | undefined>();
   useEffect(() => {
     fetch("/api/v1/channels")
@@ -102,12 +102,6 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
       )
       .catch(() => {});
   }, []);
-  const showPreview =
-    !!selectedNode &&
-    !previewHidden &&
-    (selectedNode.type === "sendMessage" ||
-      (selectedNode.type === "trigger" &&
-        (selectedNode.data as { triggerType?: string }).triggerType === "comment_keyword"));
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -243,6 +237,53 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   );
 
   const handleSave = useCallback(() => saveFlow(), [saveFlow]);
+
+  // Autosave like ManyChat ("Guardado"), plus undo / redo of canvas changes.
+  const firstRender = useRef(true);
+  const history = useRef<{ past: Array<{ nodes: Node[]; edges: Edge[] }>; future: Array<{ nodes: Node[]; edges: Edge[] }> }>({
+    past: [],
+    future: [],
+  });
+  const restoring = useRef(false);
+  const lastSnapshot = useRef<{ nodes: Node[]; edges: Edge[] }>({ nodes: initialNodes, edges: initialEdges });
+  const [, forceHistoryRender] = useState(0);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    const t = setTimeout(() => {
+      if (!restoring.current) {
+        history.current.past.push(lastSnapshot.current);
+        if (history.current.past.length > 50) history.current.past.shift();
+        history.current.future = [];
+      }
+      restoring.current = false;
+      lastSnapshot.current = { nodes, edges };
+      forceHistoryRender((n) => n + 1);
+      saveFlow();
+    }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, flowName]);
+
+  const undo = () => {
+    const prev = history.current.past.pop();
+    if (!prev) return;
+    history.current.future.push(lastSnapshot.current);
+    restoring.current = true;
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+  };
+  const redo = () => {
+    const nxt = history.current.future.pop();
+    if (!nxt) return;
+    history.current.past.push(lastSnapshot.current);
+    restoring.current = true;
+    setNodes(nxt.nodes);
+    setEdges(nxt.edges);
+  };
   const handleDelete = useCallback(async () => {
     setDeleting(true);
     try {
@@ -327,11 +368,28 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
               {saveError}
             </span>
           )}
-          {!saveError && lastSaved && (
+          {!saveError && (
             <span className="text-xs text-muted-foreground">
-              ✓ Guardado {lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              {saving ? "Guardando…" : lastSaved ? "✓ Guardado" : ""}
             </span>
           )}
+          <button
+            onClick={undo}
+            disabled={history.current.past.length === 0}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-30"
+            title="Deshacer"
+          >
+            <Undo2 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={redo}
+            disabled={history.current.future.length === 0}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-30"
+            title="Rehacer"
+          >
+            <Redo2 className="h-4 w-4" />
+          </button>
+          <div className="mx-1 h-5 w-px bg-border" />
           <button
             onClick={() => {
               setTestPanelOpen(!testPanelOpen);
@@ -349,14 +407,6 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           >
             <Play className="h-3.5 w-3.5" />
             Vista previa
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Guardar
           </button>
           <button
             onClick={handlePublish}
@@ -485,28 +535,44 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 
       {/* Canvas area */}
       <div className="flex flex-1 overflow-hidden">
+        {selectedNode && !versionPanelOpen && (
+          <NodeConfigSidebar
+            node={selectedNode}
+            nodes={nodes}
+            edges={edges}
+            onChange={onNodeDataChange}
+            onClose={closeSidebar}
+            onDelete={deleteNode}
+          />
+        )}
         <div ref={reactFlowWrapper} className="relative flex-1">
+          {pendingConnection && (
+            <ConnectDropMenu
+              pending={pendingConnection}
+              onClose={() => setPendingConnection(null)}
+              onCreated={(id) => setSelectedNodeId(id)}
+            />
+          )}
           <CanvasControls
             wrapper={reactFlowWrapper}
             onAdded={(id) => setSelectedNodeId(id)}
             onArrange={() => setNodes((nds) => arrangeNodes(nds, edges))}
           />
-          {showPreview && selectedNode && (
-            <PhonePreview
-              key={selectedNode.id}
-              node={selectedNode}
-              nodes={nodes}
-              edges={edges}
-              username={igUsername}
-              onClose={() => setPreviewHidden(true)}
-            />
-          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectEnd={(event, state) => {
+              if (state.isValid || !state.fromNode) return;
+              const point = "changedTouches" in event ? event.changedTouches[0] : event;
+              setPendingConnection({
+                source: state.fromNode.id,
+                sourceHandle: state.fromHandle?.id ?? null,
+                screen: { x: point.clientX, y: point.clientY },
+              });
+            }}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onNodeClick={onNodeClick}
@@ -520,16 +586,6 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             <Background gap={16} size={1} className="!bg-background" />
           </ReactFlow>
         </div>
-        {selectedNode && !versionPanelOpen && !testPanelOpen && (
-          <NodeConfigSidebar
-            node={selectedNode}
-            nodes={nodes}
-            edges={edges}
-            onChange={onNodeDataChange}
-            onClose={closeSidebar}
-            onDelete={deleteNode}
-          />
-        )}
         {versionPanelOpen && (
           <VersionHistoryPanel
             flowId={flow.id}
@@ -539,15 +595,11 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           />
         )}
         {testPanelOpen && (
-          <TestPanel
+          <PreviewSimulator
             nodes={nodes}
             edges={edges}
+            username={igUsername}
             onClose={() => setTestPanelOpen(false)}
-            onHighlightNode={(nodeId) => {
-              // Scroll to and highlight the node
-              const node = nodes.find((n) => n.id === nodeId);
-              if (node) setSelectedNodeId(nodeId);
-            }}
           />
         )}
       </div>
