@@ -17,7 +17,7 @@ const triggerLabels: Record<string, string> = {
   quick_reply: "Quick Reply",
   welcome: "Welcome Message",
   default: "Default Reply",
-  comment_keyword: "Comment Keyword",
+  comment_keyword: "El usuario comenta tu publicación o Reel",
 };
 
 export function TriggerNode({ data, selected }: NodeProps) {
@@ -45,7 +45,16 @@ export function TriggerNode({ data, selected }: NodeProps) {
             </span>
           )}
         </div>
-        {nodeData.keywords && nodeData.keywords.length > 0 && (
+        {triggerType === "comment_keyword" && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {(data as Record<string, unknown>).anyComment === true
+              ? "Cualquier comentario"
+              : nodeData.keywords?.length
+                ? `Palabras: ${nodeData.keywords.slice(0, 3).map((k) => k.value).join(", ")}${nodeData.keywords.length > 3 ? ` +${nodeData.keywords.length - 3}` : ""}`
+                : "Configura el disparador"}
+          </p>
+        )}
+        {triggerType !== "comment_keyword" && nodeData.keywords && nodeData.keywords.length > 0 && (
           <p className="mt-1 text-xs text-muted-foreground">
             Keywords:{" "}
             {nodeData.keywords
@@ -55,7 +64,7 @@ export function TriggerNode({ data, selected }: NodeProps) {
             {nodeData.keywords.length > 3 && ` +${nodeData.keywords.length - 3} more`}
           </p>
         )}
-        {!nodeData.keywords?.length && triggerType !== "keyword" && (
+        {!nodeData.keywords?.length && triggerType !== "keyword" && triggerType !== "comment_keyword" && (
           <p className="mt-1 text-xs text-muted-foreground">
             {triggerLabels[triggerType] || triggerType}
           </p>

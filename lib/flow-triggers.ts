@@ -55,7 +55,24 @@ export function buildDesiredTriggers(
         const postIds = data.postIds ?? nodeConfig.postIds;
         if (Array.isArray(postIds) && postIds.length > 0) config.postIds = postIds;
         const replyText = data.replyText ?? nodeConfig.replyText;
-        if (typeof replyText === "string" && replyText.trim()) config.replyText = replyText;
+        if (typeof replyText === "string" && replyText.trim() && data.replyEnabled !== false) {
+          config.replyText = replyText;
+        }
+        if (type === "comment_keyword") {
+          // ManyChat-style comment trigger options (see CommentTriggerWizard).
+          config.nodeId = n.id;
+          const scope = data.postScope;
+          if (scope === "specific" || scope === "any" || scope === "next") config.postScope = scope;
+          if (scope === "any") delete config.postIds;
+          if (scope === "next") {
+            delete config.postIds;
+            config.knownPostIds = Array.isArray(data.knownPostIds) ? data.knownPostIds : [];
+          }
+          if (data.anyComment === true) config.anyComment = true;
+          if (Array.isArray(data.excludeKeywords) && data.excludeKeywords.length > 0) {
+            config.excludeKeywords = data.excludeKeywords;
+          }
+        }
       } else if (type === "postback" || type === "quick_reply") {
         const payload = data.payload ?? nodeConfig.payload;
         if (payload !== undefined) config.payload = payload;
@@ -73,7 +90,16 @@ export function buildDesiredTriggers(
       // postIds (post scoping) and replyText (the public reply on the comment)
       // are dropped from the DM row: a DM has neither a post nor a comment.
       if (type === "comment_keyword" && data.alsoMatchInDms === true && config.keywords?.length) {
-        const { postIds: _postIds, replyText: _replyText, ...dmConfig } = config;
+        const {
+          postIds: _postIds,
+          replyText: _replyText,
+          postScope: _postScope,
+          knownPostIds: _knownPostIds,
+          anyComment: _anyComment,
+          excludeKeywords: _excludeKeywords,
+          nodeId: _nodeId,
+          ...dmConfig
+        } = config;
         return [row, { ...row, type: "keyword" as TriggerType, config: dmConfig }];
       }
 

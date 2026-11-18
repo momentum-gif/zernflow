@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TriggerType } from "@/lib/types/database";
+import { CommentTriggerWizard } from "./CommentTriggerWizard";
 
 interface Keyword {
   value: string;
@@ -76,7 +77,7 @@ export function TriggerPanel({ data: rawData, onChange }: TriggerPanelProps) {
     [data, keywords, onChange]
   );
 
-  const showKeywords = triggerType === "keyword" || triggerType === "comment_keyword";
+  const showKeywords = triggerType === "keyword";
   const showPayload = triggerType === "postback" || triggerType === "quick_reply";
 
   return (
@@ -199,37 +200,16 @@ export function TriggerPanel({ data: rawData, onChange }: TriggerPanelProps) {
             </p>
           )}
 
-          {/* Comment keywords only: publish also writes a `keyword` trigger row so
-              the same flow answers people who DM the keyword instead of commenting. */}
-          {triggerType === "comment_keyword" && (
-            <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-card p-3">
-              <input
-                type="checkbox"
-                checked={data.alsoMatchInDms === true}
-                onChange={(e) => onChange({ ...data, alsoMatchInDms: e.target.checked })}
-                disabled={keywords.length === 0}
-                className="mt-0.5 h-4 w-4 rounded border-input text-emerald-500 focus:ring-emerald-500 disabled:opacity-40"
-              />
-              <div>
-                <p className="text-sm font-medium text-foreground">Also match in DMs</p>
-                <p className="text-xs text-muted-foreground">
-                  {keywords.length === 0
-                    ? "Add at least one keyword to use this."
-                    : "Run this flow when someone sends a keyword as a direct message, not just as a comment."}
-                </p>
-                {data.alsoMatchInDms === true && (
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    A DM has no comment behind it, so public replies and the comment
-                    variables ({"{{comment_text}}"}, {"{{post_id}}"}) are empty on that run.
-                  </p>
-                )}
-              </div>
-            </label>
-          )}
         </div>
       )}
 
-      {triggerType === "comment_keyword" && (<div><label className="mb-2 block text-xs font-semibold text-foreground">Respuestas públicas al comentario (opcional)</label>{(typeof data.replyText === "string" && data.replyText.length > 0 ? data.replyText.split("||") : [""]).map((r, i, arr) => (<div key={i} className="mb-2 flex items-center gap-2"><input type="text" value={r} onChange={(e) => { const a = [...arr]; a[i] = e.target.value; onChange({ ...data, replyText: a.join("||") }); }} placeholder="Ej: Te lo mandé por DM 📩" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />{arr.length > 1 && (<button type="button" onClick={() => onChange({ ...data, replyText: arr.filter((_, j) => j !== i).join("||") })} className="text-xs text-muted-foreground hover:text-red-500">✕</button>)}</div>))}<button type="button" onClick={() => { const t = typeof data.replyText === "string" ? data.replyText : ""; if (t.trim()) onChange({ ...data, replyText: t + "||" }); }} className="text-xs font-medium text-emerald-600 hover:underline">+ Agregar otra respuesta</button><p className="mt-1.5 text-xs text-muted-foreground">Si agregas varias, se elige una al azar en cada comentario.</p></div>)} {/* Payload Section */}
+      {triggerType === "comment_keyword" && (
+        <div className="border-t border-border pt-5">
+          <CommentTriggerWizard data={data} onChange={onChange} />
+        </div>
+      )}
+
+      {/* Payload Section */}
       {showPayload && (
         <div>
           <label className="mb-2 block text-xs font-semibold text-foreground">

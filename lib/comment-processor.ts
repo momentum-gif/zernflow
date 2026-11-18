@@ -22,6 +22,27 @@ interface CommentKeywordConfig {
   }>;
   postIds?: string[];
   replyText?: string;
+  /** ManyChat-style post choice; absent on rows published before the wizard. */
+  postScope?: "specific" | "any" | "next";
+  /** "next": posts that already existed when the trigger was set up. */
+  knownPostIds?: string[];
+  /** "next": set once the first new post gets a comment. */
+  lockedPostId?: string;
+  anyComment?: boolean;
+  excludeKeywords?: string[];
+  /** Flow node that produced this row, so the "next" lock can be written back. */
+  nodeId?: string;
+}
+
+function postMatches(config: CommentKeywordConfig, postId: string): boolean {
+  if (config.postScope === "any") return true;
+  if (config.postScope === "next") {
+    if (config.lockedPostId) return config.lockedPostId === postId;
+    return !(config.knownPostIds ?? []).includes(postId);
+  }
+  // "specific", or legacy rows: postIds (when present) scope the trigger.
+  if (config.postIds?.length) return config.postIds.includes(postId);
+  return config.postScope !== "specific";
 }
 
 /**
@@ -38,8 +59,10 @@ export function matchCommentTrigger(
 
   for (const trigger of triggers) {
     const config = trigger.config as unknown as CommentKeywordConfig;
+    if (!postMatches(config, comment.postId)) continue;
+    if (config.excludeKeywords?.some((ex) => ex.trim() && text.includes(ex.toLowerCase().trim()))) continue;
+    if (config.anyComment) return trigger;
     if (!config.keywords?.length) continue;
-    if (config.postIds?.length && !config.postIds.includes(comment.postId)) continue;
 
     for (const kw of config.keywords) {
       const keyword = kw.value.toLowerCase();
@@ -116,6 +139,10 @@ export async function processComment({
   }
 
   const config = matchedTrigger.config as unknown as CommentKeywordConfig;
+
+  if (config.postScope === "next" && !config.lockedPostId) {
+    await lockNextPostTrigger(supabase, matchedTrigger, config, comment.postId);
+  }
 
   try {
     const senderId = comment.author.id || `comment_${comment.id}`;
@@ -316,4 +343,43 @@ async function logComment({
     },
     { onConflict: "channel_id,platform_comment_id" },
   );
+}
+
+/**
+ * "Siguiente publicación o Reel": the first comment on a new post pins the
+ * trigger to that post, like ManyChat. Written to both the live trigger row and
+ * the flow's node, so the builder then shows that post and a republish keeps it.
+ */
+async function lockNextPostTrigger(
+  supabase: SupabaseClient<Database>,
+  trigger: Trigger,
+  config: CommentKeywordConfig,
+  postId: string,
+) {
+  try {
+    await supabase
+      .from("triggers")
+      .update({ config: { ...config, lockedPostId: postId } as unknown as Json })
+      .eq("id", trigger.id);
+
+    if (!config.nodeId) return;
+    const { data: flow } = await supabase
+      .from("flows")
+      .select("nodes")
+      .eq("id", trigger.flow_id)
+      .single();
+    if (!flow || !Array.isArray(flow.nodes)) return;
+
+    const nodes = (flow.nodes as Array<Record<string, unknown>>).map((n) => {
+      if (n.id !== config.nodeId) return n;
+      const data = (n.data ?? {}) as Record<string, unknown>;
+      return {
+        ...n,
+        data: { ...data, postScope: "specific", postIds: [postId], selectedPosts: [{ id: postId, picture: null }] },
+      };
+    });
+    await supabase.from("flows").update({ nodes: nodes as unknown as Json }).eq("id", trigger.flow_id);
+  } catch (err) {
+    console.error("Failed to lock next-post trigger:", err);
+  }
 }
