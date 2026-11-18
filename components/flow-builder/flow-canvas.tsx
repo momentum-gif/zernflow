@@ -19,7 +19,8 @@ import "@xyflow/react/dist/style.css";
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Rocket, Loader2, History, Play, Download, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, Save, Rocket, Loader2, History, Play, Download, Trash2, MoreVertical, Undo2 } from "lucide-react";
+import { refreshButtonPayloads } from "@/lib/flow-payloads";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { createClient } from "@/lib/supabase/client";
@@ -83,6 +84,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const selectedNode = selectedNodeId
@@ -244,8 +246,11 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const handleDelete = useCallback(async () => {
     setDeleting(true);
     try {
+      // Like ManyChat, "Eliminar" sends it to the Papelera (restorable).
       const res = await fetch(`/api/v1/flows/${flow.id}`, {
-        method: "DELETE",
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "archived" }),
       });
       if (!res.ok) {
         console.error("Failed to delete flow");
@@ -292,31 +297,28 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/dashboard/flows")}
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            className="rounded-lg px-1.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back
+            Automatizaciones
           </button>
-          <div className="h-5 w-px bg-border" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             value={flowName}
             onChange={(e) => setFlowName(e.target.value)}
-            className="w-auto max-w-[200px] border-none bg-transparent text-sm font-semibold outline-none focus:ring-0"
+            className="w-auto max-w-[260px] border-none bg-transparent text-sm font-semibold outline-none focus:ring-0"
             style={{ width: `${Math.max(flowName.length, 8)}ch` }}
-            placeholder="Flow name"
+            placeholder="Nombre de la automatización"
           />
           <span
             className={cn(
-              "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium",
+              "inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold",
               flow.status === "published"
                 ? "bg-emerald-100 text-emerald-800"
-                : flow.status === "archived"
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-muted text-muted-foreground"
+                : "bg-muted text-muted-foreground"
             )}
           >
-            {flow.status}
+            {flow.status === "published" ? "ACTIVO" : flow.status === "archived" ? "EN PAPELERA" : "BORRADOR"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -327,7 +329,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           )}
           {!saveError && lastSaved && (
             <span className="text-xs text-muted-foreground">
-              Saved {lastSaved.toLocaleTimeString()}
+              ✓ Guardado {lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
           <button
@@ -346,91 +348,131 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             )}
           >
             <Play className="h-3.5 w-3.5" />
-            Test
-          </button>
-          <button
-            onClick={() => {
-              setVersionPanelOpen(!versionPanelOpen);
-              if (!versionPanelOpen) {
-                setTestPanelOpen(false);
-                setSelectedNodeId(null);
-              }
-            }}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-              versionPanelOpen
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border bg-background hover:bg-accent"
-            )}
-          >
-            <History className="h-3.5 w-3.5" />
-            History
-          </button>
-          <button
-            onClick={() => {
-              const exportData = {
-                name: flowName,
-                description: flow.description || null,
-                nodes,
-                edges,
-                version: flow.version || 1,
-                exportedAt: new Date().toISOString(),
-                source: "zernflow",
-              };
-              const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `${flowName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.flow.json`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export
+            Vista previa
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
           >
-            {saving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            Save
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            Guardar
           </button>
           <button
             onClick={handlePublish}
             disabled={publishing}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {publishing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Rocket className="h-3.5 w-3.5" />
-            )}
-            Publish
+            {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+            Publicar en vivo
           </button>
-          <button
-            onClick={() => setConfirmDelete(true)}
-            disabled={deleting}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-            title="Delete flow"
-          >
-            {deleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
+
+          <div className="relative">
+            <button
+              onClick={() => setMoreOpen((o) => !o)}
+              className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-accent"
+              aria-label="Más acciones"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+            </button>
+            {moreOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                <div className="absolute right-0 top-10 z-50 w-60 rounded-lg border border-border bg-card p-1 shadow-lg">
+                  <button
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                    onClick={async () => {
+                      setMoreOpen(false);
+                      const res = await fetch("/api/v1/flows", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          name: `${flowName} (copia)`,
+                          description: flow.description ?? null,
+                          ...refreshButtonPayloads(nodes, edges),
+                        }),
+                      });
+                      const created = await res.json().catch(() => null);
+                      if (res.ok && created?.id) router.push(`/dashboard/flows/${created.id}`);
+                      else alert("No se pudo duplicar.");
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5" /> Duplicar
+                  </button>
+                  <button
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      const exportData = {
+                        name: flowName,
+                        description: flow.description || null,
+                        nodes,
+                        edges,
+                        version: flow.version || 1,
+                        exportedAt: new Date().toISOString(),
+                        source: "zernflow",
+                      };
+                      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `${flowName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.flow.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" /> Exportar
+                  </button>
+                  <button
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setVersionPanelOpen(true);
+                      setTestPanelOpen(false);
+                      setSelectedNodeId(null);
+                    }}
+                  >
+                    <History className="h-3.5 w-3.5" /> Mostrar historial de versiones
+                  </button>
+                  <button
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setConfirmDelete(true);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                  </button>
+                  <div className="my-1 border-t border-border" />
+                  <button
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted"
+                    onClick={async () => {
+                      setMoreOpen(false);
+                      if (!window.confirm("¿Volver a la última versión publicada? Se perderán los cambios sin publicar.")) return;
+                      const { createClient } = await import("@/lib/supabase/client");
+                      const { data: v } = await createClient()
+                        .from("flow_versions")
+                        .select("nodes, edges")
+                        .eq("flow_id", flow.id)
+                        .order("version", { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                      if (!v) return alert("Esta automatización todavía no se ha publicado.");
+                      setNodes((v.nodes as unknown as Node[]) ?? []);
+                      setEdges((v.edges as unknown as Edge[]) ?? []);
+                    }}
+                  >
+                    <Undo2 className="h-3.5 w-3.5" /> Revertir a la publicación
+                  </button>
+                </div>
+              </>
             )}
-          </button>
+          </div>
           <ConfirmDialog
             open={confirmDelete}
-            title="Delete flow"
-            message={`"${flowName}" and its triggers, versions, and run history will be permanently deleted. This cannot be undone.`}
-            confirmLabel="Delete"
+            title="Eliminar automatización"
+            message={`"${flowName}" se moverá a la Papelera y dejará de funcionar. Puedes restaurarla desde allí.`}
+            confirmLabel="Eliminar"
             destructive
             onConfirm={() => {
               setConfirmDelete(false);
