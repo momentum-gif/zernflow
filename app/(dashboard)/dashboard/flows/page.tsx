@@ -11,6 +11,7 @@ import {
   TrashRowActions,
 } from "@/components/automation/automation-list";
 import type { Json } from "@/lib/types/database";
+import { computeFlowStats } from "@/lib/automation-stats";
 
 const statusBadge: Record<string, { label: string; classes: string }> = {
   published: { label: "ACTIVO", classes: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
@@ -76,25 +77,13 @@ export default async function FlowsPage({
   });
   const trashCount = all.filter((f) => f.status === "archived").length;
 
-  // "Ejecuciones" and "CTR" per automation, from analytics events.
-  const stats = new Map<string, { runs: number; clicks: number; sent: number }>();
+  // "Ejecuciones" and "CTR" per automation (same definitions as the builder and Analytics).
+  const stats = new Map<string, { runs: number; ctr: number | null }>();
   if (!inTrash) {
     await Promise.all(
       flows.map(async (f) => {
-        const count = async (type: string) => {
-          const { count } = await supabase
-            .from("analytics_events")
-            .select("*", { count: "exact", head: true })
-            .eq("flow_id", f.id)
-            .eq("event_type", type);
-          return count ?? 0;
-        };
-        const [runs, clicks, sent] = await Promise.all([
-          count("flow_started"),
-          count("button_clicked"),
-          count("message_sent"),
-        ]);
-        stats.set(f.id, { runs, clicks, sent });
+        const st = await computeFlowStats(supabase, f.id);
+        stats.set(f.id, { runs: st.runs, ctr: st.ctr });
       }),
     );
   }
@@ -205,7 +194,7 @@ export default async function FlowsPage({
             {flows.map((flow) => {
               const badge = statusBadge[flow.status] ?? statusBadge.draft;
               const s = stats.get(flow.id);
-              const ctr = s && s.sent > 0 ? `${Math.round((s.clicks / s.sent) * 100)}%` : "n/a";
+              const ctr = s && s.ctr !== null ? `${s.ctr}%` : "n/a";
               const row = (
                 <>
                   <span className="flex min-w-0 items-center gap-2">

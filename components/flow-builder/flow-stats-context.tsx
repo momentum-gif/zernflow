@@ -2,10 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-interface FlowStats {
-  sent: Record<string, number>;
-  clicks: Record<string, number>;
-}
+import type { FlowStats } from "@/lib/automation-stats";
 
 const FlowStatsContext = createContext<FlowStats | null>(null);
 

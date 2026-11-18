@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { computeFlowStats } from "@/lib/automation-stats";
 
 // --- Types ---
 
@@ -29,9 +30,10 @@ interface Stats {
 interface FlowPerformance {
   id: string;
   name: string;
-  starts: number;
-  completions: number;
-  dropOffRate: number;
+  runs: number;
+  sent: number;
+  clicked: number;
+  ctr: number | null;
 }
 
 interface DailyCount {
@@ -308,20 +310,17 @@ export function AnalyticsView({
       (startsRes.data ?? []).forEach((e) => {
         if (e.flow_id) startCounts.set(e.flow_id, (startCounts.get(e.flow_id) ?? 0) + 1);
       });
-      const completionCounts = new Map<string, number>();
-      (completionsRes.data ?? []).forEach((e) => {
-        if (e.flow_id) completionCounts.set(e.flow_id, (completionCounts.get(e.flow_id) ?? 0) + 1);
-      });
-      const allFlowIds = new Set([...startCounts.keys(), ...completionCounts.keys()]);
-      const perfData: FlowPerformance[] = Array.from(allFlowIds)
-        .map((fid) => {
-          const starts = startCounts.get(fid) ?? 0;
-          const completions = completionCounts.get(fid) ?? 0;
-          const dropOffRate = starts > 0 ? Math.round(((starts - completions) / starts) * 100) : 0;
-          return { id: fid, name: flowNames.get(fid) ?? "Unknown Flow", starts, completions, dropOffRate };
-        })
-        .sort((a, b) => b.starts - a.starts)
-        .slice(0, 10);
+      // Same definitions as the automation list and the builder (lib/automation-stats).
+      const topIds = Array.from(startCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([fid]) => fid);
+      const perfData: FlowPerformance[] = await Promise.all(
+        topIds.map(async (fid) => {
+          const st = await computeFlowStats(supabase, fid, range);
+          return { id: fid, name: String(flowNames.get(fid) ?? "Automatización"), runs: st.runs, sent: st.sent, clicked: st.clicked, ctr: st.ctr };
+        }),
+      );
       setFlowPerformance(perfData);
 
       // Contact growth by day
@@ -364,36 +363,36 @@ export function AnalyticsView({
   }
 
   const timeRangeOptions: { value: TimeRange; label: string }[] = [
-    { value: "7d", label: "Last 7 days" },
-    { value: "30d", label: "Last 30 days" },
-    { value: "90d", label: "Last 90 days" },
-    { value: "custom", label: "Custom" },
+    { value: "7d", label: "Últimos 7 días" },
+    { value: "30d", label: "Últimos 30 días" },
+    { value: "90d", label: "Últimos 90 días" },
+    { value: "custom", label: "Personalizado" },
   ];
 
   const statCards = [
     {
-      label: "Total Flows",
+      label: "Automatizaciones",
       value: stats.totalFlows,
       icon: GitBranch,
       color: "text-blue-600",
       bg: "bg-blue-100",
     },
     {
-      label: "Total Contacts",
+      label: "Contactos",
       value: stats.totalContacts,
       icon: Users,
       color: "text-purple-600",
       bg: "bg-purple-100",
     },
     {
-      label: "Messages Sent",
+      label: "Mensajes enviados",
       value: stats.messagesSent,
       icon: Send,
       color: "text-green-600",
       bg: "bg-green-100",
     },
     {
-      label: "Messages Failed",
+      label: "Mensajes fallidos",
       value: stats.messagesFailed,
       icon: AlertTriangle,
       color: "text-red-600",
@@ -413,9 +412,9 @@ export function AnalyticsView({
       <div className="border-b border-border px-8 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Analytics</h1>
+            <h1 className="text-2xl font-bold">Analíticas</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Monitor your workspace performance
+              Rendimiento de tus automatizaciones
             </p>
           </div>
 
@@ -508,7 +507,7 @@ export function AnalyticsView({
               {/* Contact growth */}
               <div className="rounded-xl border border-border bg-card p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold">Contact Growth</h3>
+                  <h3 className="text-sm font-semibold">Nuevos contactos</h3>
                   <span className="text-xs text-muted-foreground">
                     New contacts per day
                   </span>
@@ -540,15 +539,15 @@ export function AnalyticsView({
               {/* Message volume */}
               <div className="rounded-xl border border-border bg-card p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold">Message Volume</h3>
+                  <h3 className="text-sm font-semibold">Mensajes por día</h3>
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                       <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                      Sent
+                      Enviados
                     </span>
                     <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                       <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-                      Failed
+                      Fallidos
                     </span>
                   </div>
                 </div>
@@ -565,73 +564,46 @@ export function AnalyticsView({
             {/* Flow performance table */}
             <div className="rounded-xl border border-border bg-card">
               <div className="border-b border-border px-6 py-4">
-                <h3 className="text-sm font-semibold">Flow Performance</h3>
+                <h3 className="text-sm font-semibold">Rendimiento por automatización</h3>
               </div>
+              <p className="px-6 pt-3 text-xs text-muted-foreground">
+                Ejecuciones = veces que se inició · Enviados y Clics = personas · CTR = Clics ÷ Enviados. Son los mismos
+                números que ves en Mis automatizaciones y en el editor.
+              </p>
               {flowPerformance.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <GitBranch className="h-8 w-8 text-muted-foreground/40" />
                   <p className="mt-2 text-sm text-muted-foreground">
-                    No flow activity in this period
+                    Sin actividad en este periodo
                   </p>
                 </div>
               ) : (
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border bg-muted/50 text-left">
-                      <th className="px-6 py-3 text-xs font-medium uppercase text-muted-foreground">
-                        Flow Name
+                      <th className="px-6 py-3 text-xs font-medium uppercase text-muted-foreground">Automatización</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground" title="Veces que se inició">
+                        Ejecuciones
                       </th>
-                      <th className="px-4 py-3 text-xs font-medium uppercase text-muted-foreground text-right">
-                        Starts
+                      <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground" title="Personas que recibieron al menos un mensaje">
+                        Enviados
                       </th>
-                      <th className="px-4 py-3 text-xs font-medium uppercase text-muted-foreground text-right">
-                        Completions
+                      <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground" title="Personas que tocaron al menos un botón">
+                        Clics
                       </th>
-                      <th className="px-6 py-3 text-xs font-medium uppercase text-muted-foreground text-right">
-                        Drop-off Rate
+                      <th className="px-6 py-3 text-right text-xs font-medium uppercase text-muted-foreground" title="Clics ÷ Enviados">
+                        CTR
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {flowPerformance.map((flow) => (
-                      <tr
-                        key={flow.id}
-                        className="border-b border-border last:border-0 transition-colors hover:bg-accent/50"
-                      >
-                        <td className="px-6 py-3">
-                          <span className="text-sm font-medium">
-                            {flow.name}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="text-sm text-muted-foreground">
-                            {flow.starts}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="text-sm text-muted-foreground">
-                            {flow.completions}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-right">
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 text-sm font-medium",
-                              flow.dropOffRate > 50
-                                ? "text-red-600"
-                                : flow.dropOffRate > 25
-                                  ? "text-yellow-600"
-                                  : "text-green-600"
-                            )}
-                          >
-                            {flow.dropOffRate > 50 ? (
-                              <TrendingDown className="h-3.5 w-3.5" />
-                            ) : (
-                              <TrendingUp className="h-3.5 w-3.5" />
-                            )}
-                            {flow.dropOffRate}%
-                          </span>
-                        </td>
+                      <tr key={flow.id} className="border-b border-border last:border-0 transition-colors hover:bg-accent/50">
+                        <td className="px-6 py-3 text-sm font-medium">{flow.name}</td>
+                        <td className="px-4 py-3 text-right text-sm text-muted-foreground">{flow.runs}</td>
+                        <td className="px-4 py-3 text-right text-sm text-muted-foreground">{flow.sent}</td>
+                        <td className="px-4 py-3 text-right text-sm text-muted-foreground">{flow.clicked}</td>
+                        <td className="px-6 py-3 text-right text-sm font-medium">{flow.ctr === null ? "n/a" : `${flow.ctr}%`}</td>
                       </tr>
                     ))}
                   </tbody>

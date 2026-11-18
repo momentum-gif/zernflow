@@ -34,7 +34,7 @@ export interface SendMessageNodeProps {
  */
 export function SendMessageNode({ id, data, selected }: NodeProps) {
   const stats = useFlowStats();
-  const sentCount = stats?.sent[id] ?? 0;
+  const step = stats?.nodes[id];
   const nodeData = data as SendMessageNodeProps;
   const label = nodeData.label || "Enviar mensaje";
   const messages = nodeData.messages ?? [];
@@ -109,9 +109,12 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
           >
             {c.kind === "url" && <Link2 className="h-3 w-3 text-muted-foreground" />}
             <span className="truncate">{c.title || "Botón sin título"}</span>
-            {c.handle && stats && sentCount > 0 && (
-              <span className="ml-1 shrink-0 text-[10px] font-normal text-muted-foreground">
-                {Math.round(((stats.clicks[c.handle] ?? 0) / sentCount) * 100)}%
+            {c.handle && stats && (step?.sent ?? 0) > 0 && (
+              <span
+                className="ml-1 shrink-0 text-[10px] font-normal text-muted-foreground"
+                title="Personas que tocaron este botón"
+              >
+                {stats.buttons[c.handle] ?? 0} clics
               </span>
             )}
             {c.handle && (
@@ -127,7 +130,9 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
       </div>
 
       <div className="relative flex items-center justify-between border-t border-border px-3 py-2">
-        <span className="text-[10px] text-muted-foreground">{stats ? `Enviados ${sentCount}` : ""}</span>
+        <span className="text-[10px] text-muted-foreground" title="Personas que recibieron este paso · CTR = personas que tocaron un botón ÷ enviados">
+          {stats ? `Enviados ${step?.sent ?? 0}${choices.some((c) => c.handle) ? ` · CTR ${step?.ctr ?? 0}%` : ""}` : ""}
+        </span>
         <span className="text-[10px] text-muted-foreground">Siguiente paso</span>
         <Handle
           type="source"

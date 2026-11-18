@@ -1,5 +1,6 @@
 import { getWorkspace } from "@/lib/workspace";
 import { AnalyticsView } from "./analytics-view";
+import { computeFlowStats } from "@/lib/automation-stats";
 
 export default async function AnalyticsPage() {
   const { workspace, supabase } = await getWorkspace();
@@ -89,20 +90,17 @@ export default async function AnalyticsPage() {
   (startsRes.data ?? []).forEach((e) => {
     if (e.flow_id) startCounts.set(e.flow_id, (startCounts.get(e.flow_id) ?? 0) + 1);
   });
-  const completionCounts = new Map<string, number>();
-  (completionsRes.data ?? []).forEach((e) => {
-    if (e.flow_id) completionCounts.set(e.flow_id, (completionCounts.get(e.flow_id) ?? 0) + 1);
-  });
-  const allFlowIds = new Set([...startCounts.keys(), ...completionCounts.keys()]);
-  const flowPerformance = Array.from(allFlowIds)
-    .map((fid) => {
-      const starts = startCounts.get(fid) ?? 0;
-      const completions = completionCounts.get(fid) ?? 0;
-      const dropOffRate = starts > 0 ? Math.round(((starts - completions) / starts) * 100) : 0;
-      return { id: fid, name: flowNames.get(fid) ?? "Unknown Flow", starts, completions, dropOffRate };
-    })
-    .sort((a, b) => b.starts - a.starts)
-    .slice(0, 10);
+  // Same definitions as the automation list and the builder (lib/automation-stats).
+  const topIds = Array.from(startCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([fid]) => fid);
+  const flowPerformance = await Promise.all(
+    topIds.map(async (fid) => {
+      const st = await computeFlowStats(supabase, fid, { start: thirtyDaysAgo, end: now });
+      return { id: fid, name: String(flowNames.get(fid) ?? "Automatización"), runs: st.runs, sent: st.sent, clicked: st.clicked, ctr: st.ctr };
+    }),
+  );
 
   // Build daily contact growth
   const growthByDay = new Map<string, number>();
