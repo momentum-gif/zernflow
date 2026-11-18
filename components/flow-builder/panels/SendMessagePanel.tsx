@@ -727,7 +727,7 @@ function CarouselCardEditor({
                 className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium text-blue-500 hover:bg-blue-50"
               >
                 <Plus className="h-2.5 w-2.5" />
-                Add
+                Añadir
               </button>
             )}
           </div>
