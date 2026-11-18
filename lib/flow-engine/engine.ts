@@ -279,11 +279,38 @@ export async function resumeSession(
     (currentNode.type as string) === "action"
       ? (currentNode.data as unknown as { actionType?: string }).actionType
       : currentNode.type;
-  if (currentActionType === "collectInput") {
-    const d = currentNode.data as unknown as CollectInputNodeData;
+  const messageQuestion =
+    currentNode.type === "sendMessage"
+      ? (currentNode.data as unknown as { question?: MessageQuestion }).question
+      : undefined;
+  if (currentActionType === "collectInput" || (messageQuestion && messageQuestion.text?.trim())) {
+    const d: CollectInputNodeData = messageQuestion
+      ? {
+          inputType: messageQuestion.inputType,
+          options: messageQuestion.options,
+          fieldSlug: messageQuestion.fieldSlug,
+          variableName: messageQuestion.variableName,
+          retryText: messageQuestion.retryText,
+        }
+      : (currentNode.data as unknown as CollectInputNodeData);
     const qr = context.incomingMessage.quickReplyPayload;
     const answer = (qr?.startsWith("ci:") ? qr.slice(3) : context.incomingMessage.text ?? "").trim();
     if (!isValidCollectedInput(d.inputType, answer, d.options)) {
+      // ManyChat "Reintentar N veces si la respuesta del usuario no es válida".
+      if (messageQuestion) {
+        const tries = Number(context.variables?.__ci_retries ?? 0) + 1;
+        const max = Number(messageQuestion.retries ?? 3);
+        if (tries > max) {
+          await completeSession(supabase, session.id);
+          return;
+        }
+        context.variables ??= {};
+        context.variables.__ci_retries = String(tries);
+        await supabase
+          .from("flow_sessions")
+          .update({ variables: context.variables as Json })
+          .eq("id", session.id);
+      }
       const retry = d.retryText?.trim() || defaultRetryText(d.inputType);
       await executeSendMessage(
         supabase,
@@ -314,10 +341,32 @@ export async function resumeSession(
       await supabase.from("contacts").update({ display_name: answer }).eq("id", context.contactId);
     }
     delete context.variables.__ci_expires_at;
+    delete context.variables.__ci_retries;
+  }
+
+  // Message with a question: "Acción en respuesta" runs on a valid answer, then "Siguiente paso".
+  if (messageQuestion && messageQuestion.text?.trim()) {
+    const replyEdge = edges.find((e) => e.source === currentNode.id && e.sourceHandle === "reply");
+    const nextDefault = edges.find((e) => e.source === currentNode.id && !e.sourceHandle);
+    const replyNode = replyEdge && nodes.find((n) => n.id === replyEdge.target);
+    const defaultNode = nextDefault && nodes.find((n) => n.id === nextDefault.target);
+    if (replyNode && defaultNode) {
+      context.currentNodeId = replyNode.id;
+      await executeNode(supabase, replyNode, context, session.id);
+      await traverseNodes(supabase, session.id, defaultNode, nodes, edges, context, 0);
+      return;
+    }
+    const target = replyNode ?? defaultNode;
+    if (!target) {
+      await completeSession(supabase, session.id);
+      return;
+    }
+    await traverseNodes(supabase, session.id, target, nodes, edges, context, 0);
+    return;
   }
 
   // Get next node after the current one
-  const nextEdge = edges.find((e) => e.source === currentNode.id && !e.sourceHandle?.startsWith("btn:"));
+  const nextEdge = edges.find((e) => e.source === currentNode.id && !e.sourceHandle?.startsWith("btn:") && e.sourceHandle !== "reply" && e.sourceHandle !== "noreply");
   if (!nextEdge) {
     await completeSession(supabase, session.id);
     return;
@@ -413,7 +462,7 @@ async function traverseNodes(
     );
   } else {
     // Button connectors ("btn:<payload>") only run when that button is tapped.
-    nextEdge = edges.find((e) => e.source === node.id && !e.sourceHandle?.startsWith("btn:"));
+    nextEdge = edges.find((e) => e.source === node.id && !e.sourceHandle?.startsWith("btn:") && e.sourceHandle !== "reply" && e.sourceHandle !== "noreply");
   }
 
   if (!nextEdge) {
@@ -450,8 +499,12 @@ async function executeNode(
     node = { ...node, data: { ...(node.data as object), ...extra } as FlowNode["data"] };
   }
   switch (kind) {
-    case "sendMessage":
-      return executeSendMessage(supabase, node.data as SendMessageNodeData, context);
+    case "sendMessage": {
+      const res = await executeSendMessage(supabase, node.data as SendMessageNodeData, context);
+      const q = (node.data as unknown as { question?: MessageQuestion }).question;
+      if (q && q.text?.trim()) return askMessageQuestion(supabase, q, node.id, context, sessionId);
+      return res;
+    }
     case "condition":
       return executeCondition(supabase, node.data as ConditionNodeData, context);
     case "delay":
@@ -1523,4 +1576,120 @@ async function executeActionList(
 export function isWaitExpired(session: { variables: unknown }): boolean {
   const at = (session.variables as Record<string, unknown> | null)?.__ci_expires_at;
   return typeof at === "string" && new Date(at).getTime() < Date.now();
+}
+
+
+/** ManyChat question block inside "Enviar mensaje" (Recopilación de datos). */
+export interface MessageQuestion {
+  text: string;
+  inputType?: CollectInputNodeData["inputType"];
+  options?: string[];
+  fieldSlug?: string;
+  variableName?: string;
+  retryText?: string;
+  /** "La recopilación de datos expira en" N unidades. */
+  expireValue?: number;
+  expireUnit?: "seconds" | "minutes" | "hours" | "days";
+  /** "Reintentar N veces si la respuesta del usuario no es válida". */
+  retries?: number;
+}
+
+const UNIT_MS: Record<string, number> = {
+  seconds: 1000,
+  minutes: 60_000,
+  hours: 3_600_000,
+  days: 86_400_000,
+};
+
+async function askMessageQuestion(
+  supabase: SupabaseClient<Database>,
+  q: MessageQuestion,
+  nodeId: string,
+  context: FlowExecutionContext,
+  sessionId: string
+): Promise<"pause"> {
+  const options = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
+  const message: Record<string, unknown> = { text: q.text };
+  if (q.inputType === "choice" && options.length > 0) {
+    message.quickReplies = options.slice(0, 13).map((o) => ({ title: o.slice(0, 20), payload: `ci:${o}` }));
+  }
+  await executeSendMessage(supabase, { messages: [message] } as unknown as SendMessageNodeData, context);
+
+  context.variables ??= {};
+  delete context.variables.__ci_retries;
+  const ms = Number(q.expireValue ?? 0) * (UNIT_MS[q.expireUnit ?? "minutes"] ?? 60_000);
+  let expiresAt: string | null = null;
+  if (ms > 0) {
+    expiresAt = new Date(Date.now() + ms).toISOString();
+    context.variables.__ci_expires_at = expiresAt;
+  } else {
+    delete context.variables.__ci_expires_at;
+  }
+  await supabase
+    .from("flow_sessions")
+    .update({ waiting_for_input: true, current_node_id: nodeId, variables: context.variables as Json })
+    .eq("id", sessionId);
+
+  // "Si el contacto no ha respondido": the cron continues this branch when time runs out.
+  if (expiresAt) {
+    await supabase.from("scheduled_jobs").insert({
+      type: "input_timeout",
+      payload: {
+        sessionId,
+        nodeId,
+        expiresAt,
+        flowId: context.flowId,
+        channelId: context.channelId,
+        contactId: context.contactId,
+        conversationId: context.conversationId,
+        workspaceId: context.workspaceId,
+        lateConversationId: context.lateConversationId || null,
+        lateAccountId: context.lateAccountId || null,
+      },
+      run_at: expiresAt,
+    });
+  }
+  return "pause";
+}
+
+/**
+ * The contact did not answer in time: follow "Si el contacto no ha respondido"
+ * (handle "noreply"); without it the run simply ends.
+ */
+export async function resumeNoReply(
+  supabase: SupabaseClient<Database>,
+  session: Database["public"]["Tables"]["flow_sessions"]["Row"],
+  context: FlowExecutionContext
+) {
+  const { data: flow } = await supabase.from("flows").select("*").eq("id", session.flow_id).single();
+  if (!flow) {
+    await completeSession(supabase, session.id);
+    return;
+  }
+  const nodes = flow.nodes as unknown as FlowNode[];
+  const edges = flow.edges as unknown as FlowEdge[];
+
+  const { data: channel } = await supabase
+    .from("channels")
+    .select("platform, late_account_id")
+    .eq("id", context.channelId)
+    .single();
+  context.platform = channel?.platform as FlowExecutionContext["platform"];
+  if (channel?.late_account_id && !context.lateAccountId) context.lateAccountId = channel.late_account_id;
+
+  context.variables = { ...((session.variables as Record<string, string>) || {}) };
+  delete context.variables.__ci_expires_at;
+  delete context.variables.__ci_retries;
+  await supabase
+    .from("flow_sessions")
+    .update({ waiting_for_input: false, variables: context.variables as Json })
+    .eq("id", session.id);
+
+  const edge = edges.find((e) => e.source === session.current_node_id && e.sourceHandle === "noreply");
+  const target = edge && nodes.find((n) => n.id === edge.target);
+  if (!target) {
+    await completeSession(supabase, session.id);
+    return;
+  }
+  await traverseNodes(supabase, session.id, target, nodes, edges, context, 0);
 }

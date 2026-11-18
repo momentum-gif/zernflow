@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { FlowLoadError, resumeSession } from "@/lib/flow-engine/engine";
+import { FlowLoadError, resumeNoReply, resumeSession } from "@/lib/flow-engine/engine";
 import type { Json } from "@/lib/types/database";
 import { processDateTriggers } from "@/lib/date-triggers";
 
@@ -491,6 +491,42 @@ async function processJob(
         );
         throw err;
       }
+      break;
+    }
+
+    case "input_timeout": {
+      // "Si el contacto no ha respondido": only if that same question is still unanswered.
+      const payload = job.payload as {
+        sessionId: string;
+        nodeId: string;
+        expiresAt: string;
+        channelId: string;
+        contactId: string;
+        conversationId: string;
+        workspaceId: string;
+        lateConversationId?: string | null;
+        lateAccountId?: string | null;
+      };
+      const { data: session } = await supabase
+        .from("flow_sessions")
+        .select("*")
+        .eq("id", payload.sessionId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (!session || !session.waiting_for_input || session.current_node_id !== payload.nodeId) return;
+      const vars = (session.variables ?? {}) as Record<string, unknown>;
+      if (vars.__ci_expires_at !== payload.expiresAt) return;
+      await resumeNoReply(supabase, session, {
+        triggerId: "",
+        flowId: session.flow_id,
+        channelId: payload.channelId,
+        contactId: payload.contactId,
+        conversationId: payload.conversationId,
+        workspaceId: payload.workspaceId,
+        lateConversationId: payload.lateConversationId || undefined,
+        lateAccountId: payload.lateAccountId || undefined,
+        incomingMessage: {},
+      });
       break;
     }
 

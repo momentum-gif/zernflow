@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Plus, X, GripVertical, Image, Type, MousePointer, MessageCircle, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useReactFlow, useStore, type Edge } from "@xyflow/react";
 import { NextStepPicker, useCreateConnectedStep } from "./NextStepPicker";
 
 /** Hidden code that links a button to the step it is connected to (like ManyChat). */
@@ -61,8 +62,23 @@ const BLOCK_LABEL: Record<string, string> = {
 
 const EMOJIS = ["😀", "😂", "😍", "🥰", "😎", "🤩", "🙌", "👏", "🔥", "💪", "✅", "❤️", "👇", "👉", "📩", "🎁", "🚀", "💯", "✨", "📌", "🎉", "🙏", "😉", "🤔"];
 
+interface QuestionData {
+  text: string;
+  inputType?: string;
+  options?: string[];
+  fieldSlug?: string;
+  variableName?: string;
+  retryText?: string;
+  expireValue?: number;
+  expireUnit?: "seconds" | "minutes" | "hours" | "days";
+  retries?: number;
+}
+
+const NEW_QUESTION: QuestionData = { text: "", inputType: "text", expireValue: 30, expireUnit: "minutes", retries: 3 };
+
 interface SendMessagePanelData {
   messages?: Message[];
+  question?: QuestionData;
   [key: string]: unknown;
 }
 
@@ -138,8 +154,21 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
         />
       ))}
 
+      {data.question && (
+        <QuestionBlock
+          question={data.question}
+          nodeId={nodeId}
+          onChange={(q) => onChange({ ...data, question: q })}
+          onRemove={() => {
+            const { question: _q, ...rest } = data;
+            onChange(rest);
+          }}
+        />
+      )}
+
       <ContentBlockBar
         onAdd={(m) => onChange({ ...data, messages: [...messages, m] })}
+        onAddQuestion={data.question ? undefined : () => onChange({ ...data, question: { ...NEW_QUESTION } })}
         nodeId={nodeId}
       />
 
@@ -936,9 +965,16 @@ function TextToolbar({
   );
 }
 
-function ContentBlockBar({ onAdd, nodeId }: { onAdd: (m: Message) => void; nodeId?: string }) {
+function ContentBlockBar({
+  onAdd,
+  onAddQuestion,
+  nodeId,
+}: {
+  onAdd: (m: Message) => void;
+  onAddQuestion?: () => void;
+  nodeId?: string;
+}) {
   const [more, setMore] = useState(false);
-  const createStep = useCreateConnectedStep(nodeId ?? "");
   const item = "flex flex-col items-start rounded-lg border border-dashed border-border px-3 py-2 text-left hover:border-blue-400";
   return (
     <div>
@@ -961,7 +997,12 @@ function ContentBlockBar({ onAdd, nodeId }: { onAdd: (m: Message) => void; nodeI
           <span className="text-[11px] text-muted-foreground">Espera unos segundos entre los textos</span>
         </button>
         {nodeId && (
-          <button type="button" className={item} onClick={() => createStep("action", "collectInput")}>
+          <button
+            type="button"
+            className={cn(item, !onAddQuestion && "opacity-50")}
+            onClick={() => (onAddQuestion ? onAddQuestion() : undefined)}
+            title={onAddQuestion ? undefined : "Este mensaje ya tiene una pregunta"}
+          >
             <span className="text-sm font-medium">Recopilación de datos</span>
             <span className="text-[11px] text-muted-foreground">Recopila correos electrónicos, teléfonos y más</span>
           </button>
@@ -1001,6 +1042,214 @@ function ContentBlockBar({ onAdd, nodeId }: { onAdd: (m: Message) => void; nodeI
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+const INPUT_TYPES: Array<[string, string]> = [
+  ["text", "Texto"],
+  ["number", "Número"],
+  ["email", "Correo electrónico"],
+  ["phone", "Teléfono"],
+  ["url", "URL"],
+  ["date", "Fecha"],
+  ["datetime", "Fecha y hora"],
+  ["choice", "Elección múltiple"],
+  ["name", "Nombre completo"],
+  ["first_name", "Nombre"],
+  ["last_name", "Apellido"],
+];
+
+/**
+ * ManyChat's question block inside "Enviar mensaje": the automation pauses until
+ * the contact answers. "Acción en respuesta" runs on a valid answer and
+ * "Si el contacto no ha respondido" when the time runs out.
+ */
+function QuestionBlock({
+  question,
+  nodeId,
+  onChange,
+  onRemove,
+}: {
+  question: QuestionData;
+  nodeId?: string;
+  onChange: (q: QuestionData) => void;
+  onRemove: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const { setEdges } = useReactFlow();
+  const edges = useStore((st) => st.edges) as Edge[];
+  const createStep = useCreateConnectedStep(nodeId ?? "");
+  const set = (patch: Partial<QuestionData>) => onChange({ ...question, ...patch });
+  const typeLabel = INPUT_TYPES.find(([v]) => v === (question.inputType ?? "text"))?.[1] ?? "Texto";
+  const options = question.options ?? [];
+  const hasReply = !!nodeId && edges.some((e) => e.source === nodeId && e.sourceHandle === "reply");
+  const field = "w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none";
+
+  return (
+    <div className="group relative rounded-lg border border-border p-3">
+      <button
+        type="button"
+        onClick={() => {
+          if (nodeId) {
+            setEdges((eds) =>
+              eds.filter((e) => !(e.source === nodeId && (e.sourceHandle === "reply" || e.sourceHandle === "noreply")))
+            );
+          }
+          onRemove();
+        }}
+        className="absolute right-1.5 top-1.5 hidden rounded p-0.5 text-muted-foreground hover:text-red-500 group-hover:block"
+        aria-label="Eliminar pregunta"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+      <textarea
+        rows={2}
+        maxLength={640}
+        value={question.text}
+        onChange={(e) => set({ text: e.target.value })}
+        placeholder="Introduce una pregunta..."
+        className="w-full resize-none rounded-md border border-border bg-muted/40 px-2.5 py-2 text-sm focus:border-blue-500 focus:outline-none"
+      />
+      <button
+        type="button"
+        onClick={() => setEditing((v) => !v)}
+        className="mt-2 w-full rounded-md border border-border py-1.5 text-center text-sm hover:bg-muted"
+      >
+        Respuesta del contacto: <span className="font-medium text-blue-600">{typeLabel}</span>
+      </button>
+      <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+        Nota: La automatización se pausa hasta que el contacto responde
+      </p>
+
+      {editing && (
+        <div className="mt-3 space-y-4 rounded-lg border border-border bg-card p-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold">Editar recopilación de datos</p>
+            <button type="button" onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs font-medium">Tipo de respuesta</p>
+            <select value={question.inputType ?? "text"} onChange={(e) => set({ inputType: e.target.value })} className={field}>
+              {INPUT_TYPES.map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {question.inputType === "choice" && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium">Opciones</p>
+              {options.map((o, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <input
+                    value={o}
+                    maxLength={20}
+                    onChange={(e) => set({ options: options.map((x, j) => (j === i ? e.target.value : x)) })}
+                    className={field}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => set({ options: options.filter((_, j) => j !== i) })}
+                    className="text-muted-foreground hover:text-red-500"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              {options.length < 13 && (
+                <button type="button" onClick={() => set({ options: [...options, ""] })} className="text-xs text-blue-600">
+                  + Añadir opción
+                </button>
+              )}
+            </div>
+          )}
+
+          <div>
+            <p className="mb-1 text-xs font-medium">Guardar respuesta en un campo personalizado</p>
+            <input
+              value={question.fieldSlug ?? ""}
+              onChange={(e) => set({ fieldSlug: e.target.value })}
+              placeholder="Nombre del campo (opcional)"
+              className={field}
+            />
+            <input
+              value={question.variableName ?? ""}
+              onChange={(e) => set({ variableName: e.target.value.replace(/[^\w]/g, "_") })}
+              placeholder="Variable para usar en mensajes, ej. respuesta"
+              className={cn(field, "mt-1.5")}
+            />
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs font-medium">Acciones de entrada exitosa</p>
+            {nodeId && hasReply ? (
+              <NextStepPicker nodeId={nodeId} handle="reply" label="Acción en respuesta" />
+            ) : nodeId ? (
+              <button
+                type="button"
+                onClick={() => createStep("actions", undefined, "reply")}
+                className="w-full rounded-lg border border-dashed border-border py-2 text-sm hover:bg-muted"
+              >
+                <span className="text-amber-500">⚡</span> Realizar acciones
+              </button>
+            ) : null}
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-3">
+            <p className="text-xs font-semibold">Si el contacto no ha respondido</p>
+            <p className="text-xs text-muted-foreground">La recopilación de datos expira en</p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min={1}
+                value={question.expireValue ?? 30}
+                onChange={(e) => set({ expireValue: Math.max(1, parseInt(e.target.value) || 1) })}
+                className={cn(field, "w-20")}
+              />
+              <select
+                value={question.expireUnit ?? "minutes"}
+                onChange={(e) => set({ expireUnit: e.target.value as QuestionData["expireUnit"] })}
+                className={field}
+              >
+                <option value="seconds">Segundos</option>
+                <option value="minutes">Minutos</option>
+                <option value="hours">Horas</option>
+                <option value="days">Días</option>
+              </select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Puedes iniciar otra automatización una vez que haya caducado sin una respuesta:
+            </p>
+            {nodeId && <NextStepPicker nodeId={nodeId} handle="noreply" variant="button" />}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3 text-xs">
+            Reintentar
+            <input
+              type="number"
+              min={0}
+              max={10}
+              value={question.retries ?? 3}
+              onChange={(e) => set({ retries: Math.max(0, Math.min(10, parseInt(e.target.value) || 0)) })}
+              className="w-12 rounded border border-border bg-card px-1.5 py-0.5 text-center"
+            />
+            veces si la respuesta del usuario no es válida.
+          </div>
+          <input
+            value={question.retryText ?? ""}
+            onChange={(e) => set({ retryText: e.target.value })}
+            placeholder="Mensaje si la respuesta no es válida (opcional)"
+            className={field}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -25,7 +25,22 @@ export interface SendMessageNodeProps {
     delaySeconds?: number;
     block?: string;
   }>;
+  question?: { text?: string; inputType?: string };
 }
+
+const INPUT_LABEL: Record<string, string> = {
+  text: "Texto",
+  email: "Correo",
+  phone: "Teléfono",
+  choice: "Elección múltiple",
+  number: "Número",
+  name: "Nombre",
+  first_name: "Nombre",
+  last_name: "Apellido",
+  url: "URL",
+  date: "Fecha",
+  datetime: "Fecha y hora",
+};
 
 /**
  * Instagram message step, drawn like ManyChat's: a card with the message
@@ -128,6 +143,39 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
           </div>
         ))}
       </div>
+
+      {nodeData.question && (
+        <div className="space-y-1.5 px-3 pb-3">
+          <div className="rounded-xl bg-muted/60 px-3 py-2 text-xs">
+            {nodeData.question.text ? (
+              <p className="line-clamp-3 whitespace-pre-wrap">{nodeData.question.text}</p>
+            ) : (
+              <p className="italic text-muted-foreground">Introduce una pregunta</p>
+            )}
+          </div>
+          <p className="rounded-lg bg-violet-100 px-3 py-1.5 text-center text-[11px] font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200">
+            Esperando {INPUT_LABEL[nodeData.question.inputType ?? "text"] ?? "Texto"} del contacto…
+          </p>
+          <div className="relative flex items-center justify-end gap-1 pt-1 text-[10px] text-muted-foreground">
+            <span className="text-amber-500">⚡</span> Acción en respuesta
+            <Handle
+              type="source"
+              id="reply"
+              position={Position.Right}
+              className="!-right-[19px] !h-3 !w-3 !border-2 !border-amber-500 !bg-white"
+            />
+          </div>
+          <div className="relative flex items-center justify-end text-[10px] text-muted-foreground">
+            Si el contacto no ha respondido
+            <Handle
+              type="source"
+              id="noreply"
+              position={Position.Right}
+              className="!-right-[19px] !h-3 !w-3 !border-2 !border-red-500 !bg-white"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="relative flex items-center justify-between border-t border-border px-3 py-2">
         <span className="text-[10px] text-muted-foreground" title="Personas que recibieron este paso · CTR = personas que tocaron un botón ÷ enviados">

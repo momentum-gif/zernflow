@@ -106,6 +106,15 @@ export function PreviewSimulator({
             choices.push({ title: q.title || "Respuesta", handle: q.payload ? `btn:${q.payload}` : null });
           }
         }
+        // Question block inside the message ("Recopilación de datos"): wait for a typed answer.
+        const q = d.question as { text?: string; inputType?: string; options?: string[]; variableName?: string } | undefined;
+        if (q?.text?.trim()) {
+          acc.push({ kind: "bot", text: fill(q.text, v), buttons: q.inputType === "choice" ? q.options : undefined });
+          setItems([...acc]);
+          setVars(v);
+          setWaiting({ kind: "input", nodeId: node.id, question: String(q.variableName || "respuesta") });
+          return;
+        }
         if (choices.length > 0) {
           setItems([...acc]);
           setVars(v);
@@ -213,7 +222,7 @@ export function PreviewSimulator({
     const v = { ...vars, [waiting.question]: draft.trim() };
     const acc: Item[] = [...items, { kind: "user", text: draft.trim() }];
     setDraft("");
-    run(next(waiting.nodeId), acc, v);
+    run(next(waiting.nodeId, "reply") ?? next(waiting.nodeId), acc, v);
   }
 
   return (
@@ -288,6 +297,19 @@ export function PreviewSimulator({
             )}
           </div>
 
+          {waiting && waiting.kind === "input" && next(waiting.nodeId, "noreply") && (
+            <div className="flex justify-center border-t border-neutral-800 p-2">
+              <button
+                onClick={() => {
+                  const acc: Item[] = [...items, { kind: "system", text: "⏱ El contacto no respondió a tiempo" }];
+                  run(next(waiting.nodeId, "noreply"), acc, vars);
+                }}
+                className="rounded-full border border-neutral-600 px-3 py-1 text-[11px] hover:bg-neutral-800"
+              >
+                Probar "Si el contacto no ha respondido"
+              </button>
+            </div>
+          )}
           {waiting && waiting.kind !== "input" && (
             <div className="flex flex-wrap justify-center gap-1.5 border-t border-neutral-800 p-2">
               {(waiting.kind === "choices" ? waiting.choices : waiting.options.map((o) => ({ ...o, url: undefined }))).map(
