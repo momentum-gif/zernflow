@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { refreshButtonPayloads } from "@/lib/flow-payloads";
 
 // --- Template types ---
 
@@ -46,234 +47,181 @@ interface FlowTemplate {
 
 // --- Built-in templates ---
 
+const P = (x: number, y: number) => ({ x, y });
+const edge = (source: string, target: string, sourceHandle?: string): TemplateEdge => ({
+  id: `e-${source}-${sourceHandle ?? "next"}-${target}`,
+  source,
+  target,
+  ...(sourceHandle ? { sourceHandle } : {}),
+});
+
+/** Templates modelled on ManyChat's "Plantillas", in Spanish. */
 const templates: FlowTemplate[] = [
   {
-    id: "welcome-flow",
-    name: "Welcome Flow",
+    id: "comment-dm-links",
+    name: "Enlaces de DM automáticos desde los comentarios",
     description:
-      "Greet new users with a welcome message, wait a minute, then send a follow-up to keep them engaged.",
-    category: "Onboarding",
+      "Envía un enlace cuando la gente comenta una publicación o reel. Responde el comentario en público y manda el DM con un botón.",
+    category: "Comentarios",
     icon: MessageSquare,
-    iconColor: "text-blue-600",
-    iconBg: "bg-blue-100",
+    iconColor: "text-fuchsia-600",
+    iconBg: "bg-fuchsia-100",
     nodes: [
+      { id: "t1", type: "trigger", position: P(0, 80), data: { triggerType: "comment_keyword", keywords: [] } },
       {
-        id: "trigger-1",
-        type: "trigger",
-        position: { x: 250, y: 0 },
-        data: {
-          label: "Welcome Trigger",
-          triggerType: "welcome",
-          config: {},
-        },
-      },
-      {
-        id: "msg-1",
+        id: "m1",
         type: "sendMessage",
-        position: { x: 250, y: 150 },
+        position: P(340, 40),
         data: {
-          label: "Greeting",
-          text: "Hey there! Welcome! We're glad to have you here. How can we help you today?",
-        },
-      },
-      {
-        id: "delay-1",
-        type: "delay",
-        position: { x: 250, y: 300 },
-        data: {
-          label: "Wait 1 minute",
-          duration: 60,
-          unit: "seconds",
-        },
-      },
-      {
-        id: "msg-2",
-        type: "sendMessage",
-        position: { x: 250, y: 450 },
-        data: {
-          label: "Follow-up",
-          text: "By the way, feel free to ask me anything. I'm here to help!",
-        },
-      },
-    ],
-    edges: [
-      { id: "e1", source: "trigger-1", target: "msg-1" },
-      { id: "e2", source: "msg-1", target: "delay-1" },
-      { id: "e3", source: "delay-1", target: "msg-2" },
-    ],
-  },
-  {
-    id: "faq-bot",
-    name: "FAQ Bot",
-    description:
-      'Respond to "help" or "faq" keywords by checking the message and routing to different answer branches.',
-    category: "Support",
-    icon: HelpCircle,
-    iconColor: "text-amber-600",
-    iconBg: "bg-amber-100",
-    nodes: [
-      {
-        id: "trigger-1",
-        type: "trigger",
-        position: { x: 250, y: 0 },
-        data: {
-          label: "FAQ Trigger",
-          triggerType: "keyword",
-          config: { keywords: ["help", "faq"] },
-        },
-      },
-      {
-        id: "condition-1",
-        type: "condition",
-        position: { x: 250, y: 150 },
-        data: {
-          label: "Check keyword",
-          conditions: [
+          label: "Mensaje 1",
+          messages: [
             {
-              id: "c1",
-              field: "trigger_keyword",
-              operator: "equals",
-              value: "help",
+              text: "¡Hola {{nombre}}! 👋 Gracias por comentar. Toca el botón y te envío el enlace 👇",
+              buttons: [{ title: "Envíame el enlace", type: "postback", payload: "btn_tpl_link1" }],
             },
           ],
         },
       },
       {
-        id: "msg-help",
+        id: "m2",
         type: "sendMessage",
-        position: { x: 50, y: 350 },
+        position: P(700, 40),
         data: {
-          label: "Help response",
-          text: "Here are some things I can help you with:\n- Pricing info\n- Account setup\n- Technical support\n\nJust type your question and I'll do my best!",
-        },
-      },
-      {
-        id: "msg-faq",
-        type: "sendMessage",
-        position: { x: 450, y: 350 },
-        data: {
-          label: "FAQ response",
-          text: "Here are our most frequently asked questions:\n\n1. How do I get started?\n2. What plans are available?\n3. How do I contact support?\n\nReply with a number for more details!",
+          label: "Enlace",
+          messages: [
+            {
+              text: "Aquí lo tienes 👇",
+              buttons: [{ title: "Abrir enlace", type: "url", url: "https://" }],
+            },
+          ],
         },
       },
     ],
-    edges: [
-      { id: "e1", source: "trigger-1", target: "condition-1" },
-      {
-        id: "e2",
-        source: "condition-1",
-        target: "msg-help",
-        sourceHandle: "true",
-      },
-      {
-        id: "e3",
-        source: "condition-1",
-        target: "msg-faq",
-        sourceHandle: "false",
-      },
-    ],
+    edges: [edge("t1", "m1"), edge("m1", "m2", "btn:btn_tpl_link1")],
   },
   {
-    id: "lead-capture",
-    name: "Lead Capture",
+    id: "story-leads",
+    name: "Generar leads con historias",
     description:
-      "Collect lead information step by step: ask for name, wait for response, save it, then ask for email and tag the contact.",
-    category: "Marketing",
+      "Usa ofertas por tiempo limitado en tus historias: cuando alguien responde, le pides su correo y le envías el regalo.",
+    category: "Historias",
     icon: UserPlus,
-    iconColor: "text-green-600",
-    iconBg: "bg-green-100",
+    iconColor: "text-orange-600",
+    iconBg: "bg-orange-100",
     nodes: [
+      { id: "t1", type: "trigger", position: P(0, 80), data: { triggerType: "story_reply", anyComment: true } },
       {
-        id: "trigger-1",
-        type: "trigger",
-        position: { x: 250, y: 0 },
+        id: "c1",
+        type: "action",
+        position: P(340, 60),
         data: {
-          label: "Lead Trigger",
-          triggerType: "keyword",
-          config: { keywords: ["interested", "info", "pricing"] },
+          actionType: "collectInput",
+          question: "¡Gracias por responder, {{nombre}}! 🙌 ¿A qué correo te envío el regalo?",
+          inputType: "email",
+          variableName: "email",
+          retryText: "Ese correo no parece válido. ¿Me lo escribes de nuevo? 🙏",
         },
       },
       {
-        id: "msg-name",
+        id: "m1",
         type: "sendMessage",
-        position: { x: 250, y: 120 },
+        position: P(700, 60),
         data: {
-          label: "Ask name",
-          text: "Great, I'd love to help! What's your name?",
-        },
-      },
-      {
-        id: "wait-name",
-        type: "smartDelay",
-        position: { x: 250, y: 240 },
-        data: {
-          label: "Wait for name",
-          waitForInput: true,
-          timeout: 300,
-        },
-      },
-      {
-        id: "set-name",
-        type: "setCustomField",
-        position: { x: 250, y: 360 },
-        data: {
-          label: "Save name",
-          fieldSlug: "name",
-          value: "{{last_message}}",
-        },
-      },
-      {
-        id: "msg-email",
-        type: "sendMessage",
-        position: { x: 250, y: 480 },
-        data: {
-          label: "Ask email",
-          text: "Thanks, {{name}}! What's your email address so we can send you more details?",
-        },
-      },
-      {
-        id: "wait-email",
-        type: "smartDelay",
-        position: { x: 250, y: 600 },
-        data: {
-          label: "Wait for email",
-          waitForInput: true,
-          timeout: 300,
-        },
-      },
-      {
-        id: "set-email",
-        type: "setCustomField",
-        position: { x: 250, y: 720 },
-        data: {
-          label: "Save email",
-          fieldSlug: "email",
-          value: "{{last_message}}",
-        },
-      },
-      {
-        id: "tag-lead",
-        type: "addTag",
-        position: { x: 250, y: 840 },
-        data: {
-          label: 'Add "lead" tag',
-          tagName: "lead",
+          label: "Confirmación",
+          messages: [{ text: "¡Listo! Te lo envié a {{email}} 📩" }],
         },
       },
     ],
-    edges: [
-      { id: "e1", source: "trigger-1", target: "msg-name" },
-      { id: "e2", source: "msg-name", target: "wait-name" },
-      { id: "e3", source: "wait-name", target: "set-name" },
-      { id: "e4", source: "set-name", target: "msg-email" },
-      { id: "e5", source: "msg-email", target: "wait-email" },
-      { id: "e6", source: "wait-email", target: "set-email" },
-      { id: "e7", source: "set-email", target: "tag-lead" },
+    edges: [edge("t1", "c1"), edge("c1", "m1")],
+  },
+  {
+    id: "answer-all-dms",
+    name: "Responde todos tus DMs",
+    description: "Envía respuestas automáticas cuando te escriben un DM que no coincide con ninguna otra automatización.",
+    category: "DM",
+    icon: HelpCircle,
+    iconColor: "text-blue-600",
+    iconBg: "bg-blue-100",
+    nodes: [
+      { id: "t1", type: "trigger", position: P(0, 80), data: { triggerType: "default" } },
+      {
+        id: "m1",
+        type: "sendMessage",
+        position: P(340, 60),
+        data: {
+          label: "Respuesta",
+          messages: [{ text: "¡Gracias por escribir, {{nombre}}! 🙌 Te respondo personalmente muy pronto." }],
+        },
+      },
     ],
+    edges: [edge("t1", "m1")],
+  },
+  {
+    id: "affiliate-links",
+    name: "Enviar enlaces de productos afiliados",
+    description: "Cuando alguien te escribe una palabra clave, recibe tus enlaces de productos con botones.",
+    category: "DM",
+    icon: GitBranch,
+    iconColor: "text-emerald-600",
+    iconBg: "bg-emerald-100",
+    nodes: [
+      { id: "t1", type: "trigger", position: P(0, 80), data: { triggerType: "keyword", keywords: [{ value: "LINKS", matchType: "contains" }] } },
+      {
+        id: "m1",
+        type: "sendMessage",
+        position: P(340, 60),
+        data: {
+          label: "Mis productos",
+          messages: [
+            {
+              text: "¡Aquí tienes mis recomendaciones! 🛍️",
+              buttons: [
+                { title: "Producto 1", type: "url", url: "https://" },
+                { title: "Producto 2", type: "url", url: "https://" },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+    edges: [edge("t1", "m1")],
+  },
+  {
+    id: "comments-to-followers",
+    name: "Convierte comentarios en clientes",
+    description:
+      "Responde el comentario, ofrece tu recurso por DM y etiqueta a quien lo toca para seguirle después con una secuencia.",
+    category: "Comentarios",
+    icon: Sparkles,
+    iconColor: "text-violet-600",
+    iconBg: "bg-violet-100",
+    nodes: [
+      { id: "t1", type: "trigger", position: P(0, 80), data: { triggerType: "comment_keyword", keywords: [] } },
+      {
+        id: "m1",
+        type: "sendMessage",
+        position: P(340, 40),
+        data: {
+          label: "Oferta",
+          messages: [
+            {
+              text: "¡Hola {{nombre}}! Vi tu comentario 🙌 ¿Quieres que te envíe la guía gratis?",
+              buttons: [{ title: "¡Sí, quiero! ✅", type: "postback", payload: "btn_tpl_yes1" }],
+            },
+          ],
+        },
+      },
+      { id: "a1", type: "action", position: P(700, 40), data: { actionType: "addTag", tagName: "interesado" } },
+      {
+        id: "m2",
+        type: "sendMessage",
+        position: P(1020, 40),
+        data: { label: "Guía", messages: [{ text: "Aquí está tu guía 👇", buttons: [{ title: "Abrir guía", type: "url", url: "https://" }] }] },
+      },
+    ],
+    edges: [edge("t1", "m1"), edge("m1", "a1", "btn:btn_tpl_yes1"), edge("a1", "m2")],
   },
 ];
-
-// --- Component ---
 
 export function TemplatesView({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
@@ -292,8 +240,7 @@ export function TemplatesView({ workspaceId }: { workspaceId: string }) {
         body: JSON.stringify({
           name: template.name,
           description: template.description,
-          nodes: template.nodes,
-          edges: template.edges,
+          ...refreshButtonPayloads(template.nodes, template.edges),
         }),
       });
 
@@ -322,21 +269,21 @@ export function TemplatesView({ workspaceId }: { workspaceId: string }) {
                 className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Flows
+                Mis automatizaciones
               </Link>
             </div>
-            <h1 className="text-2xl font-bold">Flow Templates</h1>
+            <h1 className="text-2xl font-bold">Plantillas</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Start with a pre-built flow and customize it to your needs
+              Empieza con una automatización lista y adáptala a lo que necesitas
             </p>
           </div>
           <button
             disabled
             className="inline-flex items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2 text-sm font-medium text-muted-foreground cursor-not-allowed opacity-60"
-            title="Coming soon"
+            title="Próximamente"
           >
             <BookmarkPlus className="h-4 w-4" />
-            Save Current Flow as Template
+            Guardar como plantilla
           </button>
         </div>
       </div>
@@ -381,7 +328,7 @@ export function TemplatesView({ workspaceId }: { workspaceId: string }) {
                 <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <GitBranch className="h-3 w-3" />
                   <span>
-                    {nodeCount} {nodeCount === 1 ? "node" : "nodes"}
+                    {nodeCount} {nodeCount === 1 ? "paso" : "pasos"}
                   </span>
                 </div>
 
@@ -394,12 +341,12 @@ export function TemplatesView({ workspaceId }: { workspaceId: string }) {
                   {isCreating ? (
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Creating...
+                      Creando...
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-2">
                       <Sparkles className="h-3.5 w-3.5" />
-                      Use Template
+                      Usar plantilla
                     </span>
                   )}
                 </button>

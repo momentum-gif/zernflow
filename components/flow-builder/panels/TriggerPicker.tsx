@@ -33,7 +33,7 @@ export const TRIGGER_OPTIONS: Record<Tab, TriggerOption[]> = {
   contact: [
     { value: "contact_created", category: "Evento de contactos", title: "Nuevo contacto creado" },
     { value: "custom_field_changed", category: "Evento de contactos", title: "El valor de campo personalizado está cambiado" },
-    { value: "system_field_changed", category: "Evento de contactos", title: "El valor de campo del sistema está cambiado", unavailable: "PRÓXIMAMENTE" },
+    { value: "system_field_changed", category: "Evento de contactos", title: "El valor de campo del sistema está cambiado" },
     { value: "tag_added", category: "Evento de contactos", title: "Se aplica la etiqueta a un contacto" },
     { value: "tag_removed", category: "Evento de contactos", title: "Se elimina la etiqueta de un contacto" },
     { value: "sequence_subscribed", category: "Evento de contactos", title: "Contacto suscrito a una secuencia" },

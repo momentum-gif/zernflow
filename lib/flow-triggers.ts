@@ -30,6 +30,7 @@ const CONTACT_EVENT_TYPES = [
   "tag_added",
   "tag_removed",
   "custom_field_changed",
+  "system_field_changed",
   "sequence_subscribed",
   "sequence_unsubscribed",
 ] as const;

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { Json } from "@/lib/types/database";
+import { refreshButtonPayloads } from "@/lib/flow-payloads";
 
 const itemClass = "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted";
 
@@ -124,8 +125,7 @@ export function AutomationRowMenu({
         body: JSON.stringify({
           name: `${flow.name} (copia)`,
           description: flow.description ?? null,
-          nodes: flow.nodes,
-          edges: flow.edges,
+          ...refreshButtonPayloads(flow.nodes, flow.edges),
         }),
       },
       "No se pudo duplicar.",

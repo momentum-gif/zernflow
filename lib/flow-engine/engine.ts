@@ -144,7 +144,11 @@ export async function executeFlow(
     flow_id: context.flowId,
     contact_id: context.contactId,
     event_type: isButtonContinuation ? "button_clicked" : "flow_started",
-    metadata: { triggerId: context.triggerId },
+    metadata: {
+      triggerId: context.triggerId,
+      nodeId: (firedTrigger?.config as { nodeId?: string } | null)?.nodeId ?? null,
+      handle: (firedTrigger?.config as { startHandle?: string } | null)?.startHandle ?? null,
+    },
   });
 
   // Find the trigger node (entry point). Rows published since the ManyChat-style
@@ -298,6 +302,7 @@ export async function resumeSession(
     }
     if (d.inputType === "email") {
       await supabase.from("contacts").update({ email: answer }).eq("id", context.contactId);
+      await emitContactEvent(supabase, context, "system_field_changed", { fieldSlug: "email" });
     }
   }
 
@@ -368,6 +373,7 @@ async function traverseNodes(
   });
 
   // Execute the node
+  context.currentNodeId = node.id;
   const result = await executeNode(supabase, node, context, sessionId);
 
   // Persist variables written by output-producing nodes so they survive
@@ -527,6 +533,7 @@ async function sendFirstMessageAsPrivateReply(
       flow_id: context.flowId,
       contact_id: context.contactId,
       event_type: "message_sent",
+      metadata: { nodeId: context.currentNodeId ?? null },
     });
   } catch (error) {
     console.error("Failed to send comment-context message as private reply:", error);
@@ -666,6 +673,7 @@ async function executeSendMessage(
         flow_id: context.flowId,
         contact_id: context.contactId,
         event_type: "message_sent",
+        metadata: { nodeId: context.currentNodeId ?? null },
       });
     } catch (error) {
       console.error("Failed to send message:", error);

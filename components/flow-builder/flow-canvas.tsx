@@ -39,6 +39,7 @@ import { TestPanel } from "./panels/TestPanel";
 type Flow = Database["public"]["Tables"]["flows"]["Row"];
 
 import { NoteNode } from "./nodes/note-node";
+import { FlowStatsProvider } from "./flow-stats-context";
 
 const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
@@ -516,7 +517,9 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 export function FlowCanvas({ flow }: FlowCanvasProps) {
   return (
     <ReactFlowProvider>
-      <FlowCanvasInner flow={flow} />
+      <FlowStatsProvider flowId={flow.id}>
+        <FlowCanvasInner flow={flow} />
+      </FlowStatsProvider>
     </ReactFlowProvider>
   );
 }

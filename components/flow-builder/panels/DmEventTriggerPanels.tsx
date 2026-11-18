@@ -248,6 +248,7 @@ const CONTACT_EVENT_TEXT: Record<string, string> = {
   tag_added: "Se activa cuando se le aplica una etiqueta a un contacto.",
   tag_removed: "Se activa cuando se le quita una etiqueta a un contacto.",
   custom_field_changed: "Se activa cuando cambia el valor de un campo personalizado del contacto.",
+  system_field_changed: "Se activa cuando cambia el correo electrónico del contacto (por ejemplo, al recopilarlo con Recopilación de datos).",
   sequence_subscribed: "Se activa cuando un contacto entra en una secuencia.",
   sequence_unsubscribed: "Se activa cuando un contacto sale de una secuencia.",
 };

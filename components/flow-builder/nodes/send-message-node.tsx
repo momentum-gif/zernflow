@@ -3,6 +3,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Instagram, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFlowStats } from "../flow-stats-context";
 
 interface NodeButton {
   title: string;
@@ -29,7 +30,9 @@ export interface SendMessageNodeProps {
  * preview and one connector per button/quick reply, so each button leads
  * straight to its own next step. The bottom connector is "Siguiente paso".
  */
-export function SendMessageNode({ data, selected }: NodeProps) {
+export function SendMessageNode({ id, data, selected }: NodeProps) {
+  const stats = useFlowStats();
+  const sentCount = stats?.sent[id] ?? 0;
   const nodeData = data as SendMessageNodeProps;
   const label = nodeData.label || "Enviar mensaje";
   const messages = nodeData.messages ?? [];
@@ -102,6 +105,11 @@ export function SendMessageNode({ data, selected }: NodeProps) {
           >
             {c.kind === "url" && <Link2 className="h-3 w-3 text-muted-foreground" />}
             <span className="truncate">{c.title || "Botón sin título"}</span>
+            {c.handle && stats && sentCount > 0 && (
+              <span className="ml-1 shrink-0 text-[10px] font-normal text-muted-foreground">
+                {Math.round(((stats.clicks[c.handle] ?? 0) / sentCount) * 100)}%
+              </span>
+            )}
             {c.handle && (
               <Handle
                 type="source"
@@ -114,7 +122,8 @@ export function SendMessageNode({ data, selected }: NodeProps) {
         ))}
       </div>
 
-      <div className="relative flex items-center justify-end border-t border-border px-3 py-2">
+      <div className="relative flex items-center justify-between border-t border-border px-3 py-2">
+        <span className="text-[10px] text-muted-foreground">{stats ? `Enviados ${sentCount}` : ""}</span>
         <span className="text-[10px] text-muted-foreground">Siguiente paso</span>
         <Handle
           type="source"

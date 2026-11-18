@@ -176,4 +176,6 @@ export interface FlowExecutionContext {
   };
   variables?: Record<string, string>;
   platform?: Platform;
+  /** Node being executed, for per-step stats. */
+  currentNodeId?: string;
 }

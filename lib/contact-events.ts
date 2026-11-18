@@ -11,6 +11,7 @@ export type ContactEvent =
   | "tag_added"
   | "tag_removed"
   | "custom_field_changed"
+  | "system_field_changed"
   | "sequence_subscribed"
   | "sequence_unsubscribed";
 
@@ -19,6 +20,7 @@ export const CONTACT_EVENTS: readonly ContactEvent[] = [
   "tag_added",
   "tag_removed",
   "custom_field_changed",
+  "system_field_changed",
   "sequence_subscribed",
   "sequence_unsubscribed",
 ];
