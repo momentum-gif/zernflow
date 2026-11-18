@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const ZERNIO_API = "https://zernio.com/api/v1";
 
-export interface InstagramPostSummary {
+interface InstagramPostSummary {
   id: string;
   picture: string | null;
   content: string | null;

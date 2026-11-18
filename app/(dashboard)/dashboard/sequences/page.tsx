@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ListOrdered } from "lucide-react";
 import { CreateSequenceButton } from "@/components/sequences/create-sequence-button";
 import type { SequenceStatus, Json } from "@/lib/types/database";
+import { AutomationSubnav } from "@/components/automation/automation-subnav";
 
 const statusConfig: Record<SequenceStatus, { label: string; classes: string }> = {
   draft: {
@@ -71,6 +72,8 @@ export default async function SequencesPage() {
         </div>
       </div>
 
+      <div className="flex min-h-0 flex-1">
+      <AutomationSubnav active="sequences" />
       <div className="flex-1 overflow-auto px-8 py-6">
       {!sequences || sequences.length === 0 ? (
         <div className="mt-12 rounded-xl border border-dashed border-border p-12 text-center">
@@ -138,6 +141,7 @@ export default async function SequencesPage() {
           })}
         </div>
       )}
+      </div>
       </div>
     </div>
   );

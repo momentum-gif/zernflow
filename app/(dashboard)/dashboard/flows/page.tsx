@@ -4,6 +4,7 @@ import { GitBranch, Sparkles, Plug } from "lucide-react";
 import { CreateFlowButton } from "@/components/create-flow-button";
 import { ImportFlowButton, FlowMenuButton } from "@/components/flow-actions";
 import type { FlowStatus } from "@/lib/types/database";
+import { AutomationSubnav } from "@/components/automation/automation-subnav";
 
 const statusConfig: Record<FlowStatus, { label: string; classes: string }> = {
   draft: {
@@ -54,7 +55,7 @@ export default async function FlowsPage() {
       <div className="border-b border-border px-8 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Flows</h1>
+            <h1 className="text-2xl font-bold">Automatización</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Build automated chatbot flows for your channels
             </p>
@@ -73,6 +74,8 @@ export default async function FlowsPage() {
         </div>
       </div>
 
+      <div className="flex min-h-0 flex-1">
+      <AutomationSubnav active="flows" />
       <div className="flex-1 overflow-auto px-8 py-6">
       {(channelCount ?? 0) === 0 && (
         <div className="mt-6 flex items-center gap-4 rounded-xl border border-dashed border-border bg-card p-5">
@@ -151,6 +154,7 @@ export default async function FlowsPage() {
           })}
         </div>
       )}
+      </div>
       </div>
     </div>
   );
