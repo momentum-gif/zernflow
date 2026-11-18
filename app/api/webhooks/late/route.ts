@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { executeFlow, resumeSession } from "@/lib/flow-engine/engine";
+import { executeFlow, isWaitExpired, resumeSession } from "@/lib/flow-engine/engine";
 import { fireContactEvent } from "@/lib/contact-events";
 import { matchTrigger } from "@/lib/flow-engine/trigger-matcher";
 import { resolveWebhookSecret, verifyWebhookSignature } from "@/lib/zernio-webhook";
@@ -307,7 +307,12 @@ async function processMessageEvent(
     // A flow waiting for a typed answer ("Recopilación de datos", smart delay)
     // gets this message even when no trigger matches it.
     let resumed = false;
-    if (!handled && !incomingMessage.postbackPayload && !incomingMessage.quickReplyPayload) {
+    const isChoiceAnswer = !!incomingMessage.quickReplyPayload?.startsWith("ci:");
+    if (
+      !handled &&
+      !incomingMessage.postbackPayload &&
+      (!incomingMessage.quickReplyPayload || isChoiceAnswer)
+    ) {
       const { data: waiting } = await supabase
         .from("flow_sessions")
         .select("*")
@@ -316,7 +321,13 @@ async function processMessageEvent(
         .eq("status", "active")
         .eq("waiting_for_input", true)
         .maybeSingle();
-      if (waiting) {
+      if (waiting && isWaitExpired(waiting)) {
+        // The answer came too late: stop waiting and treat it as a new message.
+        await supabase
+          .from("flow_sessions")
+          .update({ waiting_for_input: false, status: "completed" })
+          .eq("id", waiting.id);
+      } else if (waiting) {
         resumed = true;
         try {
           await resumeSession(supabase, waiting, {

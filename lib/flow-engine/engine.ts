@@ -63,10 +63,15 @@ export async function executeFlow(
 
   const inc0 = context.incomingMessage;
   const hasIncoming = !!(inc0.text || inc0.postbackPayload || inc0.quickReplyPayload || inc0.event);
+  const isChoiceAnswer = !!inc0.quickReplyPayload?.startsWith("ci:");
   if (activeSession && hasIncoming) {
     // Tapping a button starts what that button is connected to; it is not an
-    // answer to a pending question, so that wait is dropped.
-    if (context.incomingMessage.postbackPayload || context.incomingMessage.quickReplyPayload) {
+    // answer to a pending question, so that wait is dropped. So is an expired one.
+    if (
+      isWaitExpired(activeSession) ||
+      context.incomingMessage.postbackPayload ||
+      (context.incomingMessage.quickReplyPayload && !isChoiceAnswer)
+    ) {
       await supabase
         .from("flow_sessions")
         .update({ status: "cancelled", waiting_for_input: false })
@@ -276,8 +281,9 @@ export async function resumeSession(
       : currentNode.type;
   if (currentActionType === "collectInput") {
     const d = currentNode.data as unknown as CollectInputNodeData;
-    const answer = (context.incomingMessage.text ?? "").trim();
-    if (!isValidCollectedInput(d.inputType, answer)) {
+    const qr = context.incomingMessage.quickReplyPayload;
+    const answer = (qr?.startsWith("ci:") ? qr.slice(3) : context.incomingMessage.text ?? "").trim();
+    if (!isValidCollectedInput(d.inputType, answer, d.options)) {
       const retry = d.retryText?.trim() || defaultRetryText(d.inputType);
       await executeSendMessage(
         supabase,
@@ -304,6 +310,10 @@ export async function resumeSession(
       await supabase.from("contacts").update({ email: answer }).eq("id", context.contactId);
       await emitContactEvent(supabase, context, "system_field_changed", { fieldSlug: "email" });
     }
+    if (d.inputType === "name") {
+      await supabase.from("contacts").update({ display_name: answer }).eq("id", context.contactId);
+    }
+    delete context.variables.__ci_expires_at;
   }
 
   // Get next node after the current one
@@ -396,8 +406,10 @@ async function traverseNodes(
   if (result && typeof result === "string" && result.startsWith("handle:")) {
     // Condition/split nodes specify which handle to follow
     const handle = result.replace("handle:", "");
+    // The condition step's connectors are drawn as "yes"/"no".
+    const alias = handle === "true" ? "yes" : handle === "false" ? "no" : undefined;
     nextEdge = edges.find(
-      (e) => e.source === node.id && e.sourceHandle === handle
+      (e) => e.source === node.id && (e.sourceHandle === handle || (!!alias && e.sourceHandle === alias))
     );
   } else {
     // Button connectors ("btn:<payload>") only run when that button is tapped.
@@ -480,16 +492,29 @@ async function executeNode(
     case "collectInput": {
       // "Recopilación de datos": ask, then wait for the answer (see resumeSession).
       const d = node.data as unknown as CollectInputNodeData;
+      const options = (d.options ?? []).map((o) => o.trim()).filter(Boolean);
       if (d.question?.trim()) {
-        await executeSendMessage(
-          supabase,
-          { messages: [{ text: d.question }] } as unknown as SendMessageNodeData,
-          context
-        );
+        const message: Record<string, unknown> = { text: d.question };
+        // Elección múltiple: the options go out as quick replies.
+        if (d.inputType === "choice" && options.length > 0) {
+          message.quickReplies = options.slice(0, 13).map((o) => ({ title: o.slice(0, 20), payload: `ci:${o}` }));
+        }
+        await executeSendMessage(supabase, { messages: [message] } as unknown as SendMessageNodeData, context);
+      }
+      context.variables ??= {};
+      const minutes = Number(d.expireMinutes ?? 0);
+      if (minutes > 0) {
+        context.variables.__ci_expires_at = new Date(Date.now() + minutes * 60_000).toISOString();
+      } else {
+        delete context.variables.__ci_expires_at;
       }
       await supabase
         .from("flow_sessions")
-        .update({ waiting_for_input: true, current_node_id: node.id })
+        .update({
+          waiting_for_input: true,
+          current_node_id: node.id,
+          variables: context.variables as Json,
+        })
         .eq("id", sessionId);
       return "pause";
     }
@@ -716,38 +741,74 @@ async function executeCondition(
 
   if (!contact) return "handle:false";
 
-  const results = data.conditions.map((condition) => {
+  const tagNames = new Set(
+    ((contact.contact_tags as Array<{ tags: { name: string } | null }> | null) ?? [])
+      .map((ct) => ct.tags?.name?.toLowerCase())
+      .filter(Boolean) as string[]
+  );
+  const customFields = (contact.contact_custom_fields as Array<{
+    value: string;
+    custom_field_definitions: { slug: string } | null;
+  }> | null) ?? [];
+
+  let activeSequences: Set<string> | null = null;
+  const sequencesOf = async () => {
+    if (activeSequences) return activeSequences;
+    const { data: rows } = await supabase
+      .from("sequence_enrollments")
+      .select("sequence_id")
+      .eq("contact_id", context.contactId)
+      .eq("status", "active");
+    activeSequences = new Set((rows ?? []).map((r) => r.sequence_id));
+    return activeSequences;
+  };
+
+  const results: boolean[] = [];
+  for (const condition of data.conditions) {
+    const c = condition as typeof condition & { fieldSlug?: string; timezone?: string };
     let fieldValue: string | undefined;
 
-    // Check built-in fields
-    if (condition.field === "platform") {
-      fieldValue = context.platform;
-    } else if (condition.field === "is_subscribed") {
-      fieldValue = String(contact.is_subscribed);
-    } else if (condition.field.startsWith("tag:")) {
-      const tagName = condition.field.replace("tag:", "");
-      const hasTags = Array.isArray(contact.contact_tags);
-      const hasTag = hasTags && (contact.contact_tags as Array<{ tags: { name: string } | null }>).some(
-        (ct) => ct.tags?.name === tagName
-      );
-      fieldValue = String(hasTag);
-    } else if (condition.field.startsWith("variable:")) {
-      const varName = condition.field.replace("variable:", "");
-      fieldValue = context.variables?.[varName];
-    } else {
-      // Check custom fields
-      const customFields = contact.contact_custom_fields as Array<{
-        value: string;
-        custom_field_definitions: { slug: string } | null;
-      }> | null;
-      const field = customFields?.find(
-        (f) => f.custom_field_definitions?.slug === condition.field
-      );
-      fieldValue = field?.value;
+    // ManyChat-style fields
+    if (c.field === "tag") {
+      const has = tagNames.has((c.value ?? "").trim().toLowerCase());
+      results.push(c.operator === "has_not" || c.operator === "not_equals" ? !has : has);
+      continue;
+    }
+    if (c.field === "sequence") {
+      const inSeq = (await sequencesOf()).has(c.value);
+      results.push(c.operator === "has_not" || c.operator === "not_equals" ? !inSeq : inSeq);
+      continue;
+    }
+    if (c.field === "current_time") {
+      const now = new Intl.DateTimeFormat("en-GB", {
+        timeZone: c.timezone || "UTC",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date());
+      results.push(c.operator === "lt" ? now < c.value : now >= c.value);
+      continue;
     }
 
-    return evaluateCondition(fieldValue, condition.operator, condition.value);
-  });
+    if (c.field === "email") fieldValue = contact.email ?? undefined;
+    else if (c.field === "full_name") fieldValue = contact.display_name ?? undefined;
+    else if (c.field === "first_name") fieldValue = contact.display_name?.trim().split(/\s+/)[0];
+    else if (c.field === "username") fieldValue = context.variables?.usuario;
+    else if (c.field === "custom_field") {
+      fieldValue = customFields.find((f) => f.custom_field_definitions?.slug === c.fieldSlug)?.value;
+    } else if (c.field === "variable") {
+      const v = resolveVariablePath((context.variables ?? {}) as Record<string, unknown>, c.fieldSlug ?? "");
+      fieldValue = v === undefined || v === null ? undefined : String(v);
+    }
+    // Older condition shapes
+    else if (c.field === "platform") fieldValue = context.platform;
+    else if (c.field === "is_subscribed") fieldValue = String(contact.is_subscribed);
+    else if (c.field.startsWith("tag:")) fieldValue = String(tagNames.has(c.field.slice(4).toLowerCase()));
+    else if (c.field.startsWith("variable:")) fieldValue = context.variables?.[c.field.slice(9)];
+    else fieldValue = customFields.find((f) => f.custom_field_definitions?.slug === c.field)?.value;
+
+    results.push(evaluateCondition(fieldValue, c.operator, c.value));
+  }
 
   const passed =
     data.logic === "and" ? results.every(Boolean) : results.some(Boolean);
@@ -760,13 +821,21 @@ function evaluateCondition(
   operator: string,
   expected: string
 ): boolean {
+  const a = (actual ?? "").toString().trim().toLowerCase();
+  const e = (expected ?? "").toString().trim().toLowerCase();
   switch (operator) {
     case "equals":
-      return actual === expected;
+      return a === e;
     case "not_equals":
-      return actual !== expected;
+      return a !== e;
     case "contains":
-      return actual?.includes(expected) || false;
+      return a.includes(e);
+    case "not_contains":
+      return !a.includes(e);
+    case "starts_with":
+      return a.startsWith(e);
+    case "not_exists":
+      return a === "";
     case "exists":
       return actual !== undefined && actual !== null && actual !== "";
     case "gt":
@@ -1222,15 +1291,33 @@ function interpolateVariables(
 
 export interface CollectInputNodeData {
   question?: string;
-  inputType?: "text" | "email" | "phone" | "number" | "url";
+  inputType?: "text" | "email" | "phone" | "number" | "url" | "choice" | "name" | "first_name" | "last_name" | "date" | "datetime";
+  /** Elección múltiple */
+  options?: string[];
+  /** Minutes to wait for the answer; 0 = no limit. */
+  expireMinutes?: number;
   variableName?: string;
   fieldSlug?: string;
   retryText?: string;
 }
 
-function isValidCollectedInput(type: CollectInputNodeData["inputType"], value: string): boolean {
+function isValidCollectedInput(
+  type: CollectInputNodeData["inputType"],
+  value: string,
+  options?: string[]
+): boolean {
   if (!value) return false;
   switch (type) {
+    case "choice":
+      return (options ?? []).some((o) => o.trim().toLowerCase() === value.toLowerCase());
+    case "date":
+      return /^\d{4}-\d{1,2}-\d{1,2}$|^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(value);
+    case "datetime":
+      return /^\d{1,4}[/-]\d{1,2}[/-]\d{1,4}[ T]\d{1,2}:\d{2}/.test(value);
+    case "name":
+    case "first_name":
+    case "last_name":
+      return value.length >= 2 && value.length <= 80;
     case "email":
       return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
     case "phone":
@@ -1254,6 +1341,12 @@ function defaultRetryText(type: CollectInputNodeData["inputType"]): string {
       return "Necesito un número. ¿Me lo escribes de nuevo?";
     case "url":
       return "Ese enlace no parece válido. ¿Me lo envías de nuevo?";
+    case "choice":
+      return "Elige una de las opciones, por favor 👇";
+    case "date":
+      return "Escríbeme la fecha así: DD/MM/AAAA 🙏";
+    case "datetime":
+      return "Escríbeme la fecha y la hora así: DD/MM/AAAA 14:30 🙏";
     default:
       return "No te entendí, ¿me lo escribes de nuevo?";
   }
@@ -1411,4 +1504,10 @@ async function executeActionList(
       console.error(`Action ${a.type} failed:`, err);
     }
   }
+}
+
+/** "Recopilación de datos" with a time limit that has passed. */
+export function isWaitExpired(session: { variables: unknown }): boolean {
+  const at = (session.variables as Record<string, unknown> | null)?.__ci_expires_at;
+  return typeof at === "string" && new Date(at).getTime() < Date.now();
 }

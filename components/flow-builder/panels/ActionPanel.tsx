@@ -574,69 +574,126 @@ function SmartDelayConfig({ data, onChange }: ActionSubPanelProps) {
   );
 }
 
-/* ───────── Recopilación de datos (ManyChat "User Input") ───────── */
+/* ───────── Recopilación de datos (ManyChat "Editar recopilación de datos") ───────── */
 function CollectInputConfig({ data, onChange }: ActionSubPanelProps) {
-  const d = data as unknown as Record<string, string | undefined>;
-  const set = (patch: Record<string, string>) => onChange({ ...data, ...patch });
+  const d = data as unknown as Record<string, unknown>;
+  const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : "");
+  const set = (patch: Record<string, unknown>) => onChange({ ...data, ...patch });
+  const options = Array.isArray(d.options) ? (d.options as string[]) : [];
+  const inputType = str("inputType") || "text";
+  const expire = typeof d.expireMinutes === "number" ? (d.expireMinutes as number) : 0;
   const inputClass =
     "w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-muted p-4">
-        <p className="text-sm font-medium text-foreground">Recopilación de datos</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Envía una pregunta y espera la respuesta de la persona. Si la respuesta no es válida, se lo vuelve a pedir.
-        </p>
-      </div>
       <div>
         <label className="mb-2 block text-xs font-semibold text-foreground">Pregunta</label>
         <textarea
           rows={3}
-          value={d.question ?? ""}
+          maxLength={640}
+          value={str("question")}
           onChange={(e) => set({ question: e.target.value })}
-          placeholder="Ej: ¿A qué correo te envío la guía? 📩"
+          placeholder="Introduce una pregunta…"
           className={inputClass}
         />
+        <p className="mt-1 text-right text-[11px] text-muted-foreground">{640 - str("question").length}</p>
+        <p className="text-xs text-muted-foreground">Nota: la automatización se pausa hasta que el contacto responde.</p>
       </div>
+
       <div>
         <label className="mb-2 block text-xs font-semibold text-foreground">Tipo de respuesta</label>
-        <select value={d.inputType ?? "text"} onChange={(e) => set({ inputType: e.target.value })} className={inputClass}>
+        <select value={inputType} onChange={(e) => set({ inputType: e.target.value })} className={inputClass}>
           <option value="text">Texto</option>
           <option value="email">Correo electrónico</option>
           <option value="phone">Teléfono</option>
+          <option value="choice">Elección múltiple</option>
           <option value="number">Número</option>
-          <option value="url">Enlace (URL)</option>
+          <option value="name">Nombre</option>
+          <option value="first_name">Nombre (solo nombre)</option>
+          <option value="last_name">Apellido</option>
+          <option value="url">URL</option>
+          <option value="date">Fecha</option>
+          <option value="datetime">Fecha y hora</option>
         </select>
       </div>
+
+      {inputType === "choice" && (
+        <div>
+          <label className="mb-2 block text-xs font-semibold text-foreground">Opciones</label>
+          <div className="space-y-2">
+            {options.map((o, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  value={o}
+                  maxLength={20}
+                  onChange={(e) => set({ options: options.map((x, j) => (j === i ? e.target.value : x)) })}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  onClick={() => set({ options: options.filter((_, j) => j !== i) })}
+                  className="text-muted-foreground hover:text-red-500"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            {options.length < 13 && (
+              <button
+                type="button"
+                onClick={() => set({ options: [...options, ""] })}
+                className="text-xs font-medium text-emerald-600 hover:underline"
+              >
+                + Añadir opción
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div>
-        <label className="mb-2 block text-xs font-semibold text-foreground">Guardar respuesta como variable</label>
+        <label className="mb-2 block text-xs font-semibold text-foreground">Guardar respuesta en una variable</label>
         <input
-          value={d.variableName ?? ""}
+          value={str("variableName")}
           onChange={(e) => set({ variableName: e.target.value.replace(/[^\w]/g, "_") })}
-          placeholder="email"
+          placeholder="respuesta"
           className={inputClass}
         />
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Luego puedes usarla en mensajes como {"{{"}{d.variableName || "email"}{"}}"}.
+          Úsala en mensajes como {"{{"}{str("variableName") || "respuesta"}{"}}"}.
         </p>
       </div>
       <div>
-        <label className="mb-2 block text-xs font-semibold text-foreground">Guardar también en el campo (opcional)</label>
+        <label className="mb-2 block text-xs font-semibold text-foreground">Guardar respuesta en un campo personalizado</label>
         <input
-          value={d.fieldSlug ?? ""}
+          value={str("fieldSlug")}
           onChange={(e) => set({ fieldSlug: e.target.value })}
-          placeholder="slug del campo personalizado"
+          placeholder="slug del campo (opcional)"
           className={inputClass}
         />
       </div>
       <div>
         <label className="mb-2 block text-xs font-semibold text-foreground">Mensaje si la respuesta no es válida</label>
         <input
-          value={d.retryText ?? ""}
+          value={str("retryText")}
           onChange={(e) => set({ retryText: e.target.value })}
-          placeholder="Ese correo no parece válido. ¿Me lo escribes de nuevo? 🙏"
+          placeholder="Se usa un mensaje automático si lo dejas vacío"
           className={inputClass}
         />
+      </div>
+      <div>
+        <label className="mb-2 block text-xs font-semibold text-foreground">Si el contacto no ha respondido</label>
+        <select
+          value={String(expire)}
+          onChange={(e) => set({ expireMinutes: Number(e.target.value) })}
+          className={inputClass}
+        >
+          <option value="0">Esperar sin límite</option>
+          <option value="30">La recopilación expira en 30 minutos</option>
+          <option value="60">La recopilación expira en 1 hora</option>
+          <option value="360">La recopilación expira en 6 horas</option>
+          <option value="1440">La recopilación expira en 24 horas</option>
+        </select>
       </div>
     </div>
   );

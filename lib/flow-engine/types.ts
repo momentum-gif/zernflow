@@ -72,7 +72,10 @@ export interface SendMessageNodeData {
 export interface ConditionNodeData {
   conditions: Array<{
     field: string;
-    operator: "equals" | "not_equals" | "contains" | "exists" | "gt" | "lt";
+    operator: string;
+    /** Custom field slug or variable name (field "custom_field" / "variable"). */
+    fieldSlug?: string;
+    timezone?: string;
     value: string;
   }>;
   logic: "and" | "or";
