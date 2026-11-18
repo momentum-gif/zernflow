@@ -150,7 +150,7 @@ export function CommentTriggerWizard({ data, onChange }: Props) {
 
 /* ----------------------------- shared pieces ----------------------------- */
 
-function OptionCard({
+export function OptionCard({
   selected,
   title,
   onSelect,
@@ -175,7 +175,7 @@ function OptionCard({
   );
 }
 
-function Footer({
+export function Footer({
   onBack,
   primaryLabel,
   primaryDisabled,
@@ -212,7 +212,7 @@ function Footer({
   );
 }
 
-function KeywordBox({
+export function KeywordBox({
   label,
   values,
   onAdd,

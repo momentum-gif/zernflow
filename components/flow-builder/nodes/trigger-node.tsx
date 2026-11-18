@@ -12,11 +12,14 @@ export interface TriggerNodeProps {
 }
 
 const triggerLabels: Record<string, string> = {
-  keyword: "Keyword",
-  postback: "Button Click",
-  quick_reply: "Quick Reply",
-  welcome: "Welcome Message",
-  default: "Default Reply",
+  keyword: "El usuario envía un mensaje",
+  postback: "El usuario toca un botón",
+  quick_reply: "El usuario toca una respuesta rápida",
+  welcome: "Mensaje de bienvenida",
+  default: "Respuesta predeterminada",
+  story_reply: "El usuario responde a tu historia",
+  story_mention: "El usuario te menciona en su historia",
+  ref_url: "El usuario hace clic en un enlace de referencia",
   comment_keyword: "El usuario comenta tu publicación o Reel",
 };
 
