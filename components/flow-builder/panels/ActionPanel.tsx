@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { SmartDelayData } from "@/lib/smart-delay";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NodeType } from "@/lib/types/database";
@@ -64,7 +66,7 @@ export function ActionPanel({ data: rawData, onChange, nodeId }: ActionPanelProp
     case "abSplit":
       return <ABSplitConfig data={data} onChange={onChange} nodeId={nodeId ?? ""} />;
     case "smartDelay":
-      return <SmartDelayConfig data={data} onChange={onChange} />;
+      return <SmartDelayConfig data={data} onChange={onChange} nodeId={nodeId ?? ""} />;
     case "enrollSequence":
       return <EnrollSequencePanel data={rawData} onChange={onChange} />;
     case "collectInput":
@@ -548,44 +550,184 @@ function ABSplitConfig({ data, onChange, nodeId }: ActionSubPanelProps & { nodeI
 }
 
 /* ───────── Smart Delay Config ───────── */
-function SmartDelayConfig({ data, onChange }: ActionSubPanelProps) {
+function SmartDelayConfig({ data, onChange, nodeId }: ActionSubPanelProps & { nodeId: string }) {
+  const d = data as unknown as SmartDelayData & Record<string, unknown>;
+  const set = (patch: Partial<SmartDelayData>) => {
+    // The account time zone comes from the browser of whoever edits the step.
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    onChange({ ...data, ...patch, tz });
+  };
+  const mode = d.mode ?? "duration";
+  const schedule = d.schedule ?? {};
+  const days = schedule.days && schedule.days.length ? schedule.days : [0, 1, 2, 3, 4, 5, 6];
+  const [fields, setFields] = useState<Array<{ slug: string; name: string }>>([]);
+  useEffect(() => {
+    if (mode !== "date" || d.dateMode !== "dynamic") return;
+    createClient()
+      .from("custom_field_definitions")
+      .select("slug, name")
+      .order("name")
+      .then(({ data: rows }) => setFields((rows as Array<{ slug: string; name: string }>) ?? []));
+  }, [mode, d.dateMode]);
+  const field = "rounded-md border border-border bg-card px-3 py-2 text-sm focus:border-blue-500 focus:outline-none";
+  const hours = Array.from({ length: 24 }, (_, h) => h);
+  const dayPreset = days.length === 7 ? "any" : days.join(",") === "1,2,3,4,5" ? "weekdays" : days.join(",") === "0,6" ? "weekend" : "custom";
+  const DAY_NAMES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-muted p-4">
-        <p className="text-sm font-medium text-foreground">Smart Delay</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Pause the flow and wait for a user response. If no response is received within the timeout, continue to the next step.
-        </p>
+    <div className="space-y-5">
+      <div className="flex justify-center">
+        <div className="flex rounded-full bg-muted p-1 text-sm">
+          {(["duration", "date"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => set({ mode: m })}
+              className={cn("rounded-full px-4 py-1", mode === m ? "bg-card font-medium shadow-sm" : "text-muted-foreground")}
+            >
+              {m === "duration" ? "Duración" : "Fecha"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div>
-        <label className="mb-2 block text-xs font-semibold text-foreground">
-          Timeout
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            min={1}
-            value={data.timeout || 30}
-            onChange={(e) =>
-              onChange({ ...data, timeout: Math.max(1, parseInt(e.target.value) || 1) })
-            }
-            className="w-24 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          <select
-            value={data.timeoutUnit || "minutes"}
-            onChange={(e) => onChange({ ...data, timeoutUnit: e.target.value })}
-            className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="minutes">Minutes</option>
-            <option value="hours">Hours</option>
-            <option value="days">Days</option>
+      {mode === "duration" ? (
+        <>
+          <div>
+            <p className="mb-2 text-sm">Esperar</p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min={1}
+                value={d.duration ?? 1}
+                onChange={(e) => set({ duration: Math.max(1, parseInt(e.target.value) || 1) })}
+                className={cn(field, "w-0 flex-[2]")}
+              />
+              <select value={d.unit ?? "hours"} onChange={(e) => set({ unit: e.target.value as SmartDelayData["unit"] })} className={cn(field, "flex-1")}>
+                <option value="seconds">Segundos</option>
+                <option value="minutes">Minutos</option>
+                <option value="hours">Horas</option>
+                <option value="days">Días</option>
+              </select>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">Ingresa un número para el tiempo de espera. Máximo 365 días.</p>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm">Enviar dentro de un horario específico</p>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!schedule.enabled}
+                onClick={() => set({ schedule: { from: 8, to: 22, ...schedule, enabled: !schedule.enabled } })}
+                className={cn("relative h-4 w-7 shrink-0 rounded-full", schedule.enabled ? "bg-blue-600" : "bg-neutral-700")}
+              >
+                <span className={cn("absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all", schedule.enabled ? "left-3.5" : "left-0.5")} />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Se envía cuando la hora local del contacto se encuentra dentro del rango de horas que hayas configurado. Si se
+              desconoce la zona horaria del contacto, se utilizará la de tu cuenta.
+            </p>
+            {schedule.enabled && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={schedule.from ?? 8}
+                    onChange={(e) => set({ schedule: { ...schedule, from: Number(e.target.value) } })}
+                    className={cn(field, "flex-1")}
+                  >
+                    {hours.map((h) => (
+                      <option key={h} value={h}>
+                        {h}:00
+                      </option>
+                    ))}
+                  </select>
+                  <span>-</span>
+                  <select
+                    value={schedule.to ?? 22}
+                    onChange={(e) => set({ schedule: { ...schedule, to: Number(e.target.value) } })}
+                    className={cn(field, "flex-1")}
+                  >
+                    {[...hours.slice(1), 0].map((h) => (
+                      <option key={h} value={h}>
+                        {h}:00
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <select
+                  value={dayPreset}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const next = v === "any" ? [0, 1, 2, 3, 4, 5, 6] : v === "weekdays" ? [1, 2, 3, 4, 5] : v === "weekend" ? [0, 6] : days;
+                    set({ schedule: { ...schedule, days: next } });
+                  }}
+                  className={cn(field, "w-full")}
+                >
+                  <option value="any">Cualquier día</option>
+                  <option value="weekdays">De lunes a viernes</option>
+                  <option value="weekend">Sábado y domingo</option>
+                  <option value="custom">Elegir días…</option>
+                </select>
+                {dayPreset === "custom" && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {[1, 2, 3, 4, 5, 6, 0].map((x) => (
+                      <button
+                        key={x}
+                        type="button"
+                        onClick={() => {
+                          const next = days.includes(x) ? days.filter((y) => y !== x) : [...days, x];
+                          if (next.length) set({ schedule: { ...schedule, days: next.sort() } });
+                        }}
+                        className={cn(
+                          "rounded-full border px-2.5 py-0.5 text-xs",
+                          days.includes(x) ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40" : "border-border"
+                        )}
+                      >
+                        {DAY_NAMES[x].slice(0, 3)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-sm">Esperar hasta</p>
+          <select value={d.dateMode ?? "specific"} onChange={(e) => set({ dateMode: e.target.value as SmartDelayData["dateMode"] })} className={cn(field, "w-full")}>
+            <option value="specific">Fecha específica</option>
+            <option value="dynamic">Fecha dinámica</option>
           </select>
+          {(d.dateMode ?? "specific") === "specific" ? (
+            <input
+              type="datetime-local"
+              value={d.date ?? ""}
+              onChange={(e) => set({ date: e.target.value })}
+              placeholder="Selecciona una fecha y una hora"
+              className={cn(field, "w-full")}
+            />
+          ) : (
+            <select value={d.dateField ?? ""} onChange={(e) => set({ dateField: e.target.value })} className={cn(field, "w-full")}>
+              <option value="">Selecciona un campo con fecha</option>
+              {fields.map((f) => (
+                <option key={f.slug} value={f.slug}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="text-xs text-muted-foreground">
+            La automatización se detiene aquí si la fecha ya ha pasado. Utilizamos la zona horaria del contacto o la de tu cuenta
+            si se desconoce la del contacto.
+          </p>
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          If the user does not respond within this time, the flow will continue.
-        </p>
-      </div>
+      )}
+
+      <NextStepPicker nodeId={nodeId} variant="button" />
     </div>
   );
 }

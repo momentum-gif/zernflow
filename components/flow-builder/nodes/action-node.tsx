@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { NodeType } from "@/lib/types/database";
 import { randomizerColor, randomizerLetter } from "../randomizer-colors";
+import { smartDelaySummary, type SmartDelayData } from "@/lib/smart-delay";
 
 export interface ActionNodeProps {
   label?: string;
@@ -157,6 +158,28 @@ export function ActionNode({ data, selected }: NodeProps) {
 
   const isAbSplit = actionType === "abSplit";
   const paths = isAbSplit ? nodeData.paths || [] : [];
+
+  // ManyChat "Pausa inteligente": red header, "Espera al menos N … y luego continúa de X a Y".
+  if (actionType === "smartDelay") {
+    const sum = smartDelaySummary(nodeData as unknown as SmartDelayData);
+    return (
+      <div className={cn("w-56 rounded-2xl border-2 bg-card shadow-sm", selected ? "border-emerald-500 shadow-md" : "border-transparent ring-1 ring-border")}>
+        <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-border !bg-white" />
+        <div className="flex items-center gap-2 rounded-t-2xl bg-red-200 px-3 py-2 text-foreground dark:bg-red-900/60">
+          <Hourglass className="h-3.5 w-3.5 text-red-600" />
+          <p className="text-sm font-medium">{nodeData.label || "Pausa inteligente"}</p>
+        </div>
+        <p className="px-3 pt-2.5 text-xs">
+          {sum.lead} <b>{sum.bold}</b>
+          {sum.tail}
+        </p>
+        <div className="relative flex items-center justify-end px-3 py-2">
+          <span className="text-[10px] text-muted-foreground">Siguiente paso</span>
+          <Handle type="source" position={Position.Right} className="!-right-[7px] !h-3 !w-3 !border-2 !border-border !bg-white" />
+        </div>
+      </div>
+    );
+  }
 
   // ManyChat "Aleatorizador": light-purple header, one row per variation (letter … %),
   // each with its own coloured connector on the right.

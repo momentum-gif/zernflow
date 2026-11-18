@@ -200,8 +200,12 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
   };
   const isRandomizer = nodeType === "action" && (node.data as { actionType?: string }).actionType === "abSplit";
   if (isRandomizer) headerBg.action = "bg-[#e4dcfb] dark:bg-purple-900/60";
+  const isSmartDelay = nodeType === "action" && (node.data as { actionType?: string }).actionType === "smartDelay";
+  if (isSmartDelay) headerBg.action = "bg-red-200 dark:bg-red-900/60";
   const defaultTitle = isRandomizer
     ? "Aleatorizador"
+    : isSmartDelay
+      ? "Pausa inteligente"
     : nodeType === "aiResponse"
       ? "AI Step"
     : nodeType === "sendMessage"

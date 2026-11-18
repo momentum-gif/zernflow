@@ -32,6 +32,9 @@ export function getDefaultData(type: string, actionType?: string): Record<string
           ],
         };
       }
+      if (actionType === "smartDelay") {
+        return { actionType, mode: "duration", duration: 1, unit: "hours", schedule: { enabled: false, from: 8, to: 22 } };
+      }
       if (actionType === "collectInput") {
         return { actionType, question: "", inputType: "email", variableName: "email" };
       }

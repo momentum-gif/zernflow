@@ -20,6 +20,7 @@ import type {
 } from "./types";
 import { executeAiResponse } from "./nodes/ai-response";
 import { isAiStep, runAiStepTurn, type AiStepData, type AiTurn } from "@/lib/ai-step";
+import { smartDelayRunAt, type SmartDelayData } from "@/lib/smart-delay";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
 import { requestPublicUrl } from "./request-public-url";
@@ -546,13 +547,36 @@ async function executeNode(
       return executeAiResponse(supabase, node.data as AiResponseNodeData, context, sessionId);
     case "abSplit":
       return executeABSplit(node.data as ABSplitNodeData, context, node.id);
-    case "smartDelay":
-      // Wait for next input
-      await supabase
-        .from("flow_sessions")
-        .update({ waiting_for_input: true, current_node_id: node.id })
-        .eq("id", sessionId);
-      return "pause";
+    case "smartDelay": {
+      // ManyChat "Pausa inteligente": wait a time (optionally inside set hours/days) or until a date.
+      const sd = node.data as unknown as SmartDelayData;
+      let fieldValue: string | null = null;
+      if (sd.mode === "date" && sd.dateMode === "dynamic" && sd.dateField) {
+        const { data: def } = await supabase
+          .from("custom_field_definitions")
+          .select("id")
+          .eq("workspace_id", context.workspaceId)
+          .eq("slug", sd.dateField)
+          .maybeSingle();
+        if (def) {
+          const { data: row } = await supabase
+            .from("contact_custom_fields")
+            .select("value")
+            .eq("contact_id", context.contactId)
+            .eq("field_id", def.id)
+            .maybeSingle();
+          fieldValue = row?.value != null ? String(row.value) : null;
+        }
+      }
+      const runAt = smartDelayRunAt(sd, fieldValue);
+      if (!runAt) {
+        // The date already passed (or none): the automation stops here.
+        await completeSession(supabase, sessionId);
+        return "pause";
+      }
+      const ms = Math.max(0, runAt.getTime() - Date.now());
+      return executeDelay(supabase, { duration: Math.ceil(ms / 1000), unit: "seconds" }, sessionId, node.id, context);
+    }
     case "enrollSequence":
       return executeEnrollSequence(supabase, node.data as EnrollSequenceNodeData, context);
     case "actions":

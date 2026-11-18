@@ -1,5 +1,6 @@
 "use client";
 
+import { smartDelaySummary, type SmartDelayData } from "@/lib/smart-delay";
 import { useEffect, useRef, useState } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import { ChevronLeft, RotateCcw, Send, X } from "lucide-react";
@@ -161,8 +162,11 @@ export function PreviewSimulator({
           (a) => `${ACTION_NAMES[a.type] ?? a.type}${a.tagName ? `: ${a.tagName}` : ""}`,
         );
         acc.push({ kind: "system", text: `⚡ ${names.join(" · ") || "Acciones"}` });
+      } else if (node.type === "action" && d.actionType === "smartDelay") {
+        const sum = smartDelaySummary(d as SmartDelayData);
+        acc.push({ kind: "system", text: `⏱ Pausa inteligente: ${sum.lead} ${sum.bold}${sum.tail}` });
       } else if (node.type === "action") {
-        acc.push({ kind: "system", text: `⚡ ${ACTION_NAMES[d.actionType] ?? (d.actionType === "smartDelay" ? "Pausa inteligente" : "Acción")}` });
+        acc.push({ kind: "system", text: `⚡ ${ACTION_NAMES[d.actionType] ?? "Acción"}` });
         if (d.actionType === "goToFlow" || d.actionType === "humanTakeover") break;
       } else if (node.type === "delay") {
         acc.push({ kind: "system", text: `⏱ Retraso de ${d.duration ?? ""} ${d.unit ?? ""}` });
