@@ -167,7 +167,7 @@ export function PreviewSimulator({
       } else if (node.type === "delay") {
         acc.push({ kind: "system", text: `⏱ Retraso de ${d.duration ?? ""} ${d.unit ?? ""}` });
       } else if (node.type === "aiResponse") {
-        acc.push({ kind: "bot", text: "🤖 (Respuesta generada por IA)" });
+        acc.push({ kind: "system", text: `✨ AI Step${d.goal ? `: ${d.goal}` : ""} (pruébalo con "Empezar Vista Previa" dentro del paso)` });
       }
       id = next(node.id);
     }

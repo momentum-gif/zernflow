@@ -19,6 +19,7 @@ import type {
   EnrollSequenceNodeData,
 } from "./types";
 import { executeAiResponse } from "./nodes/ai-response";
+import { isAiStep, runAiStepTurn, type AiStepData, type AiTurn } from "@/lib/ai-step";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
 import { requestPublicUrl } from "./request-public-url";
@@ -272,6 +273,19 @@ export async function resumeSession(
       `node ${session.current_node_id} no longer exists in flow ${session.flow_id}`
     );
     return;
+  }
+
+  // AI Step: the contact answered; the AI decides what to say next or finishes.
+  if (currentNode.type === "aiResponse" && isAiStep(currentNode.data)) {
+    const r = await executeAiStep(
+      supabase,
+      currentNode.data as AiStepData,
+      context,
+      session.id,
+      currentNode.id,
+      context.incomingMessage.text ?? ""
+    );
+    if (r === "pause") return;
   }
 
   // "Recopilación de datos": validate and store the answer before moving on.
@@ -528,6 +542,7 @@ async function executeNode(
     case "privateReply":
       return executePrivateReply(supabase, node.data as PrivateReplyNodeData, context);
     case "aiResponse":
+      if (isAiStep(node.data)) return executeAiStep(supabase, node.data as AiStepData, context, sessionId, node.id);
       return executeAiResponse(supabase, node.data as AiResponseNodeData, context, sessionId);
     case "abSplit":
       return executeABSplit(node.data as ABSplitNodeData, context, node.id);
@@ -1693,4 +1708,88 @@ export async function resumeNoReply(
     return;
   }
   await traverseNodes(supabase, session.id, target, nodes, edges, context, 0);
+}
+
+
+const AI_STEP_MAX_TURNS = 12;
+
+/**
+ * ManyChat "AI Step": the AI talks with the contact following the objective and
+ * tasks, saves the requested fields and continues to "Siguiente paso" when done.
+ */
+async function executeAiStep(
+  supabase: SupabaseClient<Database>,
+  data: AiStepData,
+  context: FlowExecutionContext,
+  sessionId: string,
+  nodeId: string,
+  userText?: string
+): Promise<"pause" | void> {
+  context.variables ??= {};
+  let history: AiTurn[] = [];
+  if (context.variables.__ai_node === nodeId && context.variables.__ai_history) {
+    try {
+      history = JSON.parse(context.variables.__ai_history) as AiTurn[];
+    } catch {
+      history = [];
+    }
+  }
+  if (userText?.trim()) history.push({ role: "user", content: userText.trim() });
+
+  const finish = async () => {
+    delete context.variables!.__ai_history;
+    delete context.variables!.__ai_node;
+    await supabase
+      .from("flow_sessions")
+      .update({ waiting_for_input: false, variables: context.variables as Json })
+      .eq("id", sessionId);
+  };
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("ai_api_key")
+    .eq("id", context.workspaceId)
+    .single();
+
+  let turn: { reply: string; fields: Record<string, string>; done: boolean };
+  try {
+    turn = await runAiStepTurn(workspace?.ai_api_key ?? null, data, history);
+  } catch (err) {
+    console.error("[ai-step]", err);
+    await finish();
+    return;
+  }
+
+  // Save "Guardar respuesta del usuario como" fields.
+  const allowed = new Set((data.tasks ?? []).filter((t) => t.saveField && t.fieldSlug).map((t) => t.fieldSlug!));
+  for (const [slug, raw] of Object.entries(turn.fields as Record<string, unknown>)) {
+    if (!allowed.has(slug)) continue;
+    const value = String(raw);
+    if (slug === "email") {
+      await supabase.from("contacts").update({ email: value }).eq("id", context.contactId);
+      await emitContactEvent(supabase, context, "system_field_changed", { fieldSlug: "email" });
+    } else {
+      await executeSetField(supabase, { fieldSlug: slug, value }, context);
+    }
+    context.variables[slug] = value;
+  }
+
+  if (turn.reply) {
+    await executeSendMessage(supabase, { messages: [{ text: turn.reply }] } as unknown as SendMessageNodeData, context);
+    history.push({ role: "assistant", content: turn.reply });
+  }
+
+  const turns = history.filter((h) => h.role === "user").length;
+  if (turn.done || turns >= AI_STEP_MAX_TURNS) {
+    await finish();
+    return;
+  }
+
+  context.variables.__ai_node = nodeId;
+  context.variables.__ai_history = JSON.stringify(history.slice(-30));
+  await supabase
+    .from("flow_sessions")
+    .update({ waiting_for_input: true, current_node_id: nodeId, variables: context.variables as Json })
+    .eq("id", sessionId);
+  return "pause";
 }

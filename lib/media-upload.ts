@@ -37,3 +37,21 @@ export async function presign(apiKey: string, filename: string, contentType: str
   }
   return { uploadUrl: body.uploadUrl, publicUrl: body.publicUrl };
 }
+
+/** The signed-in user's workspace AI Gateway key (null if none saved). */
+export async function workspaceAiKey(): Promise<{ ok: boolean; key: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, key: null };
+  const { data: member } = await supabase
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!member) return { ok: false, key: null };
+  const { data: ws } = await supabase.from("workspaces").select("ai_api_key").eq("id", member.workspace_id).single();
+  return { ok: true, key: ws?.ai_api_key ?? null };
+}

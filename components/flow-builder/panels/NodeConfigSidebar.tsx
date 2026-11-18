@@ -12,6 +12,7 @@ import { DelayPanel } from "./DelayPanel";
 import { ActionPanel } from "./ActionPanel";
 import { ActionsListPanel } from "./ActionsListPanel";
 import { AiResponsePanel } from "./AiResponsePanel";
+import { AiStepPanel } from "./AiStepPanel";
 
 interface NodeConfigSidebarProps {
   node: Node;
@@ -168,7 +169,12 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
       case "delay":
         return <DelayPanel data={data} onChange={handleChange} />;
       case "aiResponse":
-        return <AiResponsePanel data={data} onChange={handleChange} />;
+        // Old free-prompt nodes keep their editor; new ones are ManyChat's AI Step.
+        return data.systemPrompt && !data.aiStep && !Array.isArray(data.tasks) ? (
+          <AiResponsePanel data={data} onChange={handleChange} />
+        ) : (
+          <AiStepPanel data={data} onChange={handleChange} nodeId={node.id} />
+        );
       case "action":
         return <ActionPanel data={data} onChange={handleChange} nodeId={node.id} />;
       case "actions":
@@ -188,7 +194,7 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
     sendMessage: "bg-fuchsia-100 dark:bg-fuchsia-950/50",
     actions: "bg-amber-100 dark:bg-amber-950/50",
     condition: "bg-cyan-100 dark:bg-cyan-950/50",
-    aiResponse: "bg-violet-100 dark:bg-violet-950/50",
+    aiResponse: "bg-gradient-to-r from-amber-50 via-rose-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-950/50",
     delay: "bg-red-100 dark:bg-red-950/50",
     action: "bg-lime-100 dark:bg-lime-950/50",
   };
@@ -196,6 +202,8 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
   if (isRandomizer) headerBg.action = "bg-[#e4dcfb] dark:bg-purple-900/60";
   const defaultTitle = isRandomizer
     ? "Aleatorizador"
+    : nodeType === "aiResponse"
+      ? "AI Step"
     : nodeType === "sendMessage"
       ? "Enviar mensaje"
       : nodeType === "trigger"
@@ -203,7 +211,7 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
         : config.label;
 
   return (
-    <div className="flex w-[360px] shrink-0 flex-col border-r border-border bg-card shadow-lg">
+    <div data-node-sidebar className="flex w-[360px] shrink-0 flex-col border-r border-border bg-card shadow-lg">
       {/* Header */}
       <div className={cn("flex items-center gap-2 px-3 py-3", headerBg[nodeType] ?? "bg-muted")}>
         <button

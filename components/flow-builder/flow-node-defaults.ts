@@ -19,7 +19,8 @@ export function getDefaultData(type: string, actionType?: string): Record<string
     case "actions":
       return { actions: [] };
     case "aiResponse":
-      return { systemPrompt: "", model: "openai/gpt-4o-mini", temperature: 0.7, maxTokens: 500, contextMessages: 10 };
+      // ManyChat "AI Step": objective + tasks + context (filled in with "Generar").
+      return { aiStep: true, draftGoal: "", draftContext: "" };
     case "action":
       if (actionType === "abSplit") {
         return {
