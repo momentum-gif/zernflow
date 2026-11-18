@@ -165,7 +165,7 @@ export function ActionNode({ data, selected }: NodeProps) {
     >
       <Handle
         type="target"
-        position={Position.Top}
+        position={Position.Left}
         className="!h-3 !w-3 !border-2 !border-gray-400 !bg-white"
       />
       <div
@@ -191,9 +191,9 @@ export function ActionNode({ data, selected }: NodeProps) {
             <Handle
               key={path.name}
               type="source"
-              position={Position.Bottom}
+              position={Position.Right}
               id={`split-${i}`}
-              style={{ left: `${((i + 1) / (paths.length + 1)) * 100}%` }}
+              style={{ top: `${((i + 1) / (paths.length + 1)) * 100}%` }}
               className="!h-3 !w-3 !border-2 !border-gray-400 !bg-white"
             />
           ))}
@@ -201,7 +201,7 @@ export function ActionNode({ data, selected }: NodeProps) {
       ) : (
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Right}
           className="!h-3 !w-3 !border-2 !border-gray-400 !bg-white"
         />
       )}

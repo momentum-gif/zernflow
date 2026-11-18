@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Plus, X, GripVertical, Image, Type, MousePointer, MessageCircle, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NextStepPicker } from "./NextStepPicker";
+import { NextStepPicker, useCreateConnectedStep } from "./NextStepPicker";
 
 /** Hidden code that links a button to the step it is connected to (like ManyChat). */
 export function newButtonPayload() {
@@ -39,11 +39,27 @@ interface Message {
   // Media attachment. mediaType + mediaUrl supersede the legacy image-only imageUrl
   // and let a message send an image, video, or audio file.
   mediaUrl?: string;
-  mediaType?: "image" | "video" | "audio";
+  mediaType?: "image" | "video" | "audio" | "file";
   quickReplies?: QuickReply[];
   buttons?: Button[];
   carousel?: Carousel;
+  /** ManyChat content block this message was added as (editor only). */
+  block?: "text" | "image" | "video" | "audio" | "file" | "gallery" | "delay";
+  /** "Retraso" block: seconds to wait before the next message. */
+  delaySeconds?: number;
 }
+
+const BLOCK_LABEL: Record<string, string> = {
+  text: "Texto",
+  image: "Imagen",
+  video: "Video",
+  audio: "Audio",
+  file: "PDF",
+  gallery: "Galería",
+  delay: "Retraso",
+};
+
+const EMOJIS = ["😀", "😂", "😍", "🥰", "😎", "🤩", "🙌", "👏", "🔥", "💪", "✅", "❤️", "👇", "👉", "📩", "🎁", "🚀", "💯", "✨", "📌", "🎉", "🙏", "😉", "🤔"];
 
 interface SendMessagePanelData {
   messages?: Message[];
@@ -100,10 +116,6 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
     [data, messages, onChange]
   );
 
-  const addMessage = useCallback(() => {
-    onChange({ ...data, messages: [...messages, { text: "" }] });
-  }, [data, messages, onChange]);
-
   const removeMessage = useCallback(
     (index: number) => {
       onChange({ ...data, messages: messages.filter((_, i) => i !== index) });
@@ -126,14 +138,10 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
         />
       ))}
 
-      <button
-        type="button"
-        onClick={addMessage}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-blue-400 hover:text-blue-500"
-      >
-        <Plus className="h-4 w-4" />
-        Añadir mensaje
-      </button>
+      <ContentBlockBar
+        onAdd={(m) => onChange({ ...data, messages: [...messages, m] })}
+        nodeId={nodeId}
+      />
 
       {messages.length === 0 && (
         <p className="text-center text-xs text-muted-foreground">
@@ -265,6 +273,54 @@ function MessageEditor({
     [message, onChange]
   );
 
+  const block = message.block;
+  const charLimit = (message.buttons?.length ?? 0) > 0 ? 640 : 1000;
+
+  if (block === "delay") {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
+        <span className="text-xs font-semibold text-muted-foreground">Retraso</span>
+        <select
+          value={String(message.delaySeconds ?? 3)}
+          onChange={(e) => onChange({ ...message, delaySeconds: Number(e.target.value) })}
+          className="flex-1 rounded border border-border bg-card px-2 py-1 text-xs"
+        >
+          {[1, 2, 3, 5, 8, 10, 15, 20].map((n) => (
+            <option key={n} value={n}>
+              Esperar {n} {n === 1 ? "segundo" : "segundos"} (muestra &quot;escribiendo…&quot;)
+            </option>
+          ))}
+        </select>
+        <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-red-500" aria-label="Quitar">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  if (block === "image" || block === "video" || block === "audio" || block === "file") {
+    return (
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-muted-foreground">{BLOCK_LABEL[block]}</span>
+          <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-red-500" aria-label="Quitar">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <input
+          type="url"
+          value={message.mediaUrl ?? ""}
+          onChange={(e) => onChange({ ...message, mediaUrl: e.target.value, mediaType: block })}
+          placeholder={block === "file" ? "Enlace público del PDF (https://…)" : "Enlace público del archivo (https://…)"}
+          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground/70">
+          Pega el enlace directo al archivo (por ejemplo, de Google Drive con acceso público o de tu web).
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border border-border bg-card">
       {/* Message header */}
@@ -272,10 +328,10 @@ function MessageEditor({
         <div className="flex items-center gap-2">
           <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60" />
           <span className="text-xs font-semibold text-muted-foreground">
-            Mensaje {index + 1}
+            {block ? BLOCK_LABEL[block] : `Mensaje ${index + 1}`}
           </span>
         </div>
-        {canRemove && (
+        {(canRemove || !!block) && (
           <button
             type="button"
             onClick={onRemove}
@@ -286,8 +342,8 @@ function MessageEditor({
         )}
       </div>
 
-      {/* Mode toggle */}
-      <div className="flex border-b border-border">
+      {/* Mode toggle (only for messages created before content blocks) */}
+      <div className={cn("flex border-b border-border", block && "hidden")}>
         <button
           type="button"
           onClick={() => isCarouselMode && toggleMode()}
@@ -330,28 +386,36 @@ function MessageEditor({
                 <Type className="h-3 w-3 text-muted-foreground/60" />
                 <label className="text-xs font-medium text-muted-foreground">Texto</label>
               </div>
-              <textarea
-                ref={textareaRef}
-                value={message.text || ""}
-                onChange={(e) => onChange({ ...message, text: e.target.value })}
-                placeholder="Introduce tu texto…"
-                rows={3}
-                className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              {availableVariables && availableVariables.length > 0 ? (
-                <VariablePicker
-                  variables={availableVariables}
-                  onInsert={insertVariable}
+              <div className="rounded-lg border border-border bg-card focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <textarea
+                  ref={textareaRef}
+                  value={message.text || ""}
+                  maxLength={charLimit}
+                  onChange={(e) => onChange({ ...message, text: e.target.value })}
+                  placeholder="Introduce tu texto…"
+                  rows={3}
+                  className="w-full resize-none rounded-t-lg bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
                 />
-              ) : (
-                <p className="text-[11px] text-muted-foreground/60">
-                  Use {"{{variable}}"} for dynamic content
-                </p>
-              )}
+                <TextToolbar
+                  variables={availableVariables ?? []}
+                  remaining={charLimit - (message.text?.length ?? 0)}
+                  onInsert={(token) => {
+                    const textarea = textareaRef.current;
+                    const text = message.text || "";
+                    const caret = textarea?.selectionStart ?? text.length;
+                    onChange({ ...message, text: (text.slice(0, caret) + token + text.slice(caret)).slice(0, charLimit) });
+                    requestAnimationFrame(() => {
+                      if (!textarea) return;
+                      textarea.focus();
+                      textarea.setSelectionRange(caret + token.length, caret + token.length);
+                    });
+                  }}
+                />
+              </div>
             </div>
 
-            {/* Media (image / video / audio) */}
-            <div>
+            {/* Media (image / video / audio) — older combined messages only */}
+            <div className={cn(block && "hidden")}>
               <div className="mb-1.5 flex items-center gap-1.5">
                 <Image className="h-3 w-3 text-muted-foreground/60" />
                 <label className="text-xs font-medium text-muted-foreground">URL del archivo (imagen, video o audio)</label>
@@ -796,6 +860,145 @@ function CarouselCardEditor({
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────── ManyChat content blocks ───────── */
+
+function TextToolbar({
+  variables,
+  remaining,
+  onInsert,
+}: {
+  variables: string[];
+  remaining: number;
+  onInsert: (token: string) => void;
+}) {
+  const [open, setOpen] = useState<"emoji" | "vars" | null>(null);
+  return (
+    <div className="relative flex items-center justify-end gap-1 border-t border-border px-2 py-1">
+      <button
+        type="button"
+        onClick={() => setOpen(open === "emoji" ? null : "emoji")}
+        className="rounded px-1.5 py-0.5 text-sm hover:bg-muted"
+        aria-label="Emojis"
+      >
+        😊
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen(open === "vars" ? null : "vars")}
+        className="rounded px-1.5 py-0.5 font-mono text-xs text-muted-foreground hover:bg-muted"
+        aria-label="Insertar variable"
+      >
+        {"{ }"}
+      </button>
+      <span className={cn("min-w-[2.5rem] text-right text-[11px] tabular-nums", remaining < 20 ? "text-red-500" : "text-muted-foreground")}>
+        {remaining}
+      </span>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(null)} />
+          <div className="absolute right-0 top-8 z-50 w-56 rounded-lg border border-border bg-card p-2 shadow-lg">
+            {open === "emoji" ? (
+              <div className="grid grid-cols-8 gap-1">
+                {EMOJIS.map((e) => (
+                  <button key={e} type="button" onClick={() => onInsert(e)} className="rounded p-0.5 text-base hover:bg-muted">
+                    {e}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                <p className="px-1 pb-1 text-[11px] text-muted-foreground">Insertar dato del contacto</p>
+                {(variables.length ? variables : ["nombre", "nombre_completo", "usuario"]).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => {
+                      onInsert(`{{${v}}}`);
+                      setOpen(null);
+                    }}
+                    className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-muted"
+                  >
+                    {v.replace(/_/g, " ")} <span className="font-mono text-muted-foreground">{`{{${v}}}`}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ContentBlockBar({ onAdd, nodeId }: { onAdd: (m: Message) => void; nodeId?: string }) {
+  const [more, setMore] = useState(false);
+  const createStep = useCreateConnectedStep(nodeId ?? "");
+  const item = "flex flex-col items-start rounded-lg border border-dashed border-border px-3 py-2 text-left hover:border-blue-400";
+  return (
+    <div>
+      <p className="mb-2 text-xs text-muted-foreground">Añade uno de los bloques de contenido:</p>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" className={item} onClick={() => onAdd({ block: "text", text: "" })}>
+          <span className="text-sm font-medium">Texto</span>
+          <span className="text-[11px] text-muted-foreground">Añadir texto y botones simples</span>
+        </button>
+        <button type="button" className={item} onClick={() => onAdd({ block: "image", mediaType: "image", mediaUrl: "" })}>
+          <span className="text-sm font-medium">Imagen</span>
+          <span className="text-[11px] text-muted-foreground">Aumentar la participación con elementos visuales</span>
+        </button>
+        <button type="button" className={item} onClick={() => onAdd({ block: "file", mediaType: "file", mediaUrl: "" })}>
+          <span className="text-sm font-medium">PDF</span>
+          <span className="text-[11px] text-muted-foreground">Añade archivos PDF a tu mensaje</span>
+        </button>
+        <button type="button" className={item} onClick={() => onAdd({ block: "delay", delaySeconds: 3 })}>
+          <span className="text-sm font-medium">Retraso</span>
+          <span className="text-[11px] text-muted-foreground">Espera unos segundos entre los textos</span>
+        </button>
+        {nodeId && (
+          <button type="button" className={item} onClick={() => createStep("action", "collectInput")}>
+            <span className="text-sm font-medium">Recopilación de datos</span>
+            <span className="text-[11px] text-muted-foreground">Recopila correos electrónicos, teléfonos y más</span>
+          </button>
+        )}
+        <div className="relative">
+          <button type="button" className={cn(item, "w-full")} onClick={() => setMore((m) => !m)}>
+            <span className="text-sm font-medium">Más</span>
+            <span className="text-[11px] text-muted-foreground">Ver todas las opciones disponibles</span>
+          </button>
+          {more && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMore(false)} />
+              <div className="absolute bottom-full right-0 z-50 mb-1 w-56 space-y-1 rounded-lg border border-border bg-card p-1 shadow-lg">
+                {(
+                  [
+                    ["Audio", "Envía fragmentos de voz en el chat", { block: "audio", mediaType: "audio", mediaUrl: "" }],
+                    ["Video", "Compartir video en el chat", { block: "video", mediaType: "video", mediaUrl: "" }],
+                    ["Tarjeta", "Añadir imágenes con botones", { block: "gallery", carousel: { elements: [{ title: "", subtitle: "", imageUrl: "" }] } }],
+                    ["Galería", "Añadir hasta 10 imágenes con botones", { block: "gallery", carousel: { elements: [{ title: "", subtitle: "", imageUrl: "" }, { title: "", subtitle: "", imageUrl: "" }] } }],
+                  ] as Array<[string, string, Message]>
+                ).map(([title, desc, msg]) => (
+                  <button
+                    key={title}
+                    type="button"
+                    onClick={() => {
+                      onAdd(msg);
+                      setMore(false);
+                    }}
+                    className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-muted"
+                  >
+                    <span className="block text-sm font-medium">{title}</span>
+                    <span className="block text-[11px] text-muted-foreground">{desc}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

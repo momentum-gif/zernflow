@@ -24,7 +24,7 @@ export function AiResponseNode({ data, selected }: NodeProps) {
     >
       <Handle
         type="target"
-        position={Position.Top}
+        position={Position.Left}
         className="!h-3 !w-3 !border-2 !border-violet-500 !bg-white"
       />
       <div className="flex items-center gap-2 rounded-t-lg bg-violet-500 px-3 py-2 text-white">
@@ -50,7 +50,7 @@ export function AiResponseNode({ data, selected }: NodeProps) {
       </div>
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={Position.Right}
         className="!h-3 !w-3 !border-2 !border-violet-500 !bg-white"
       />
     </div>

@@ -59,7 +59,7 @@ export function PhonePreview({
   const activeTab = isComment ? tab : "dm";
 
   return (
-    <div className="pointer-events-auto absolute right-4 top-4 z-10 w-[260px] select-none">
+    <div className="pointer-events-auto absolute right-20 top-12 z-10 w-[260px] select-none">
       <div className="mb-1 flex items-center justify-between px-1">
         <span className="text-xs font-medium text-muted-foreground">Vista previa</span>
         <button onClick={onClose} className="rounded p-0.5 text-muted-foreground hover:bg-muted" aria-label="Cerrar vista previa">

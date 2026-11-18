@@ -530,7 +530,7 @@ async function sendFirstMessageAsPrivateReply(
   context: FlowExecutionContext,
   lateAccountId: string
 ) {
-  const first = data.messages[0];
+  const first = data.messages.find((m) => !(m as { delaySeconds?: number }).delaySeconds) ?? data.messages[0];
   if (!first) return;
 
   const text = interpolateVariables(
@@ -638,6 +638,12 @@ async function executeSendMessage(
   }
 
   for (const msg of data.messages) {
+    // "Retraso" block: wait a few seconds between messages, like ManyChat.
+    const delaySeconds = Number((msg as { delaySeconds?: number }).delaySeconds ?? 0);
+    if (delaySeconds > 0) {
+      await new Promise((r) => setTimeout(r, Math.min(delaySeconds, 20) * 1000));
+      continue;
+    }
     const adapted = adaptMessage(msg, context.platform!);
     const text = interpolateVariables(adapted.text, context.variables || {});
 

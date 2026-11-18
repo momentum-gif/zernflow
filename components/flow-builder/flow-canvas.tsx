@@ -3,8 +3,8 @@
 import {
   ReactFlow,
   Background,
-  Controls,
-  MiniMap,
+
+
   addEdge,
   useNodesState,
   useEdgesState,
@@ -26,7 +26,6 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { createClient } from "@/lib/supabase/client";
 import type { Database, FlowStatus, Json } from "@/lib/types/database";
 
-import { NodePalette } from "./node-palette";
 import { TriggerNode } from "./nodes/trigger-node";
 import { SendMessageNode } from "./nodes/send-message-node";
 import { ConditionNode } from "./nodes/condition-node";
@@ -44,6 +43,7 @@ import { getDefaultData, getNodeId } from "./flow-node-defaults";
 import { ActionsNode } from "./nodes/actions-node";
 import { FlowStatsProvider } from "./flow-stats-context";
 import { PhonePreview } from "./phone-preview";
+import { CanvasControls, arrangeNodes } from "./add-step-menu";
 
 const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
@@ -485,8 +485,12 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 
       {/* Canvas area */}
       <div className="flex flex-1 overflow-hidden">
-        <NodePalette />
         <div ref={reactFlowWrapper} className="relative flex-1">
+          <CanvasControls
+            wrapper={reactFlowWrapper}
+            onAdded={(id) => setSelectedNodeId(id)}
+            onArrange={() => setNodes((nds) => arrangeNodes(nds, edges))}
+          />
           {showPreview && selectedNode && (
             <PhonePreview
               key={selectedNode.id}
@@ -514,14 +518,6 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             className="bg-background"
           >
             <Background gap={16} size={1} className="!bg-background" />
-            <Controls
-              className="!border-border !bg-card !shadow-sm [&>button]:!border-border [&>button]:!bg-card [&>button]:!text-foreground [&>button:hover]:!bg-accent"
-            />
-            <MiniMap
-              className="!border-border !bg-card"
-              nodeColor={() => "var(--primary)"}
-              maskColor="rgba(0, 0, 0, 0.1)"
-            />
           </ReactFlow>
         </div>
         {selectedNode && !versionPanelOpen && !testPanelOpen && (

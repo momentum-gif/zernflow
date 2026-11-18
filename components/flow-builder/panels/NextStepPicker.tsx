@@ -38,6 +38,38 @@ function nodeName(n: Node) {
   return NODE_NAMES[n.type ?? ""] ?? "Paso";
 }
 
+/** Create a step next to `nodeId` and connect it from `handle` (or "Siguiente paso"). */
+export function useCreateConnectedStep(nodeId: string) {
+  const { getNode, getEdges, setNodes, setEdges } = useReactFlow();
+  return (type: string, actionType?: string, handle?: string) => {
+    const source = getNode(nodeId);
+    const siblings = getEdges().filter((e) => e.source === nodeId).length;
+    const id = getNodeId();
+    setNodes((nds) => [
+      ...nds,
+      {
+        id,
+        type,
+        position: { x: (source?.position.x ?? 0) + 360, y: (source?.position.y ?? 0) + siblings * 140 },
+        data: getDefaultData(type, actionType),
+      },
+    ]);
+    const matches = (e: Edge) => e.source === nodeId && (handle ? e.sourceHandle === handle : !e.sourceHandle);
+    setEdges((eds) => [
+      ...eds.filter((e) => !matches(e)),
+      {
+        id: `e_${nodeId}_${handle ?? "next"}_${id}`,
+        source: nodeId,
+        target: id,
+        ...(handle ? { sourceHandle: handle } : {}),
+        animated: true,
+        style: { stroke: "var(--border)", strokeWidth: 2 },
+      },
+    ]);
+    return id;
+  };
+}
+
 export function NextStepPicker({
   nodeId,
   handle,

@@ -22,6 +22,8 @@ export interface SendMessageNodeProps {
     quickReplies?: Array<{ title: string; payload: string }>;
     buttons?: NodeButton[];
     carousel?: { elements: Array<{ title: string; buttons?: NodeButton[] }> };
+    delaySeconds?: number;
+    block?: string;
   }>;
 }
 
@@ -81,13 +83,15 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
         )}
         {messages.map((m, i) => (
           <div key={i} className="rounded-xl bg-muted/60 px-3 py-2 text-xs text-foreground">
-            {m.text ? (
+            {m.delaySeconds ? (
+              <p className="text-muted-foreground">⏱ Retraso de {m.delaySeconds} s</p>
+            ) : m.text ? (
               <p className="line-clamp-3 whitespace-pre-wrap">{m.text}</p>
             ) : m.carousel ? (
               <p className="text-muted-foreground">Galería · {m.carousel.elements.length} tarjetas</p>
-            ) : m.mediaUrl || m.imageUrl ? (
+            ) : m.mediaUrl || m.imageUrl || (m.block && m.block !== "text") ? (
               <p className="text-muted-foreground">
-                {m.mediaType === "video" ? "Video" : m.mediaType === "audio" ? "Audio" : "Imagen"}
+                {m.mediaType === "video" ? "Video" : m.mediaType === "audio" ? "Audio" : m.mediaType === "file" ? "PDF" : "Imagen"}
               </p>
             ) : (
               <p className="italic text-muted-foreground">Mensaje vacío</p>
