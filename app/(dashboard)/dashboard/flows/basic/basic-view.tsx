@@ -79,7 +79,7 @@ export function BasicAutomationsView({ flows }: { flows: BasicFlow[] }) {
               </span>
             </>
           }
-          description="Cuando alguien comience a seguirte, se enviará un mensaje automático. Instagram todavía no permite que las aplicaciones sepan quién empieza a seguirte."
+          description="Cuando alguien comience a seguirte, se enviaría un mensaje automático. Meta mantiene este aviso en una beta privada (solo socios como ManyChat) y Zernio no lo recibe, así que ZernFlow todavía no puede usarlo."
         >
           <p className="text-xs text-muted-foreground">ⓘ No disponible por ahora.</p>
         </Row>
