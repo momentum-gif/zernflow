@@ -3,6 +3,7 @@
 import { getWorkspace } from "@/lib/workspace";
 import { revalidatePath } from "next/cache";
 import type { SequenceStep } from "@/lib/types/database";
+import { fireContactEvent } from "@/lib/contact-events";
 
 export async function createSequence(name: string) {
   const { workspace, supabase } = await getWorkspace();
@@ -127,6 +128,13 @@ export async function enrollContact(
     return { error: error.message };
   }
 
+  await fireContactEvent(supabase, {
+    workspaceId: workspace.id,
+    contactId,
+    event: "sequence_subscribed",
+    detail: { sequenceId },
+  });
+
   revalidatePath(`/dashboard/sequences/${sequenceId}`);
   return { ok: true, enrollment: data };
 }
@@ -137,7 +145,7 @@ export async function cancelEnrollment(enrollmentId: string) {
   // Verify the enrollment belongs to a sequence in this workspace
   const { data: enrollment } = await supabase
     .from("sequence_enrollments")
-    .select("id, sequence_id, sequences!inner(workspace_id)")
+    .select("id, sequence_id, contact_id, sequences!inner(workspace_id)")
     .eq("id", enrollmentId)
     .single();
 
@@ -154,6 +162,13 @@ export async function cancelEnrollment(enrollmentId: string) {
     .eq("id", enrollmentId);
 
   if (error) return { error: error.message };
+
+  await fireContactEvent(supabase, {
+    workspaceId: workspace.id,
+    contactId: enrollment.contact_id,
+    event: "sequence_unsubscribed",
+    detail: { sequenceId: enrollment.sequence_id },
+  });
 
   revalidatePath(`/dashboard/sequences/${enrollment.sequence_id}`);
   return { ok: true };

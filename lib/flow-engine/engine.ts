@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/types/database";
+import { fireContactEvent, type ContactEvent, type ContactEventDetail } from "@/lib/contact-events";
 import type {
   FlowNode,
   FlowEdge,
@@ -60,7 +61,9 @@ export async function executeFlow(
     .eq("waiting_for_input", true)
     .single();
 
-  if (activeSession) {
+  const inc0 = context.incomingMessage;
+  const hasIncoming = !!(inc0.text || inc0.postbackPayload || inc0.quickReplyPayload || inc0.event);
+  if (activeSession && hasIncoming) {
     // Tapping a button starts what that button is connected to; it is not an
     // answer to a pending question, so that wait is dropped.
     if (context.incomingMessage.postbackPayload || context.incomingMessage.quickReplyPayload) {
@@ -834,12 +837,14 @@ async function executeTag(
       .from("contact_tags")
       .upsert({ contact_id: context.contactId, tag_id: tag.id })
       .select();
+    await emitContactEvent(supabase, context, "tag_added", { tagName: data.tagName });
   } else {
     await supabase
       .from("contact_tags")
       .delete()
       .eq("contact_id", context.contactId)
       .eq("tag_id", tag.id);
+    await emitContactEvent(supabase, context, "tag_removed", { tagName: data.tagName });
   }
 }
 
@@ -868,6 +873,7 @@ async function executeSetField(
     },
     { onConflict: "contact_id,field_id" }
   );
+  await emitContactEvent(supabase, context, "custom_field_changed", { fieldSlug: data.fieldSlug });
 }
 
 async function executeHttpRequest(
@@ -1174,6 +1180,9 @@ async function executeEnrollSequence(
   if (error && error.code !== "23505") {
     console.error("Failed to enroll contact in sequence:", error);
   }
+  if (!error) {
+    await emitContactEvent(supabase, context, "sequence_subscribed", { sequenceId: data.sequenceId });
+  }
 }
 
 function resolveVariablePath(
@@ -1238,4 +1247,21 @@ function defaultRetryText(type: CollectInputNodeData["inputType"]): string {
     default:
       return "No te entendí, ¿me lo escribes de nuevo?";
   }
+}
+
+/** Report a contact change made by a flow step to "Eventos de contactos" automations. */
+function emitContactEvent(
+  supabase: SupabaseClient<Database>,
+  context: FlowExecutionContext,
+  event: ContactEvent,
+  detail: ContactEventDetail
+) {
+  return fireContactEvent(supabase, {
+    workspaceId: context.workspaceId,
+    contactId: context.contactId,
+    event,
+    detail,
+    sourceFlowId: context.flowId,
+    chain: Number(context.variables?.__contact_event_chain ?? 0) || 0,
+  });
 }

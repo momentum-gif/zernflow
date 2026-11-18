@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/types/database";
+import { fireContactEvent } from "@/lib/contact-events";
 import { executeFlow } from "@/lib/flow-engine/engine";
 import { createZernioClient } from "@/lib/zernio-client";
 
@@ -150,6 +151,7 @@ export async function processComment({
       comment.author.name || comment.author.username || "Unknown commenter";
 
     let contactId: string;
+    let contactIsNew = false;
     const { data: existingContactChannel } = await supabase
       .from("contact_channels")
       .select("contact_id")
@@ -179,6 +181,7 @@ export async function processComment({
       }
 
       contactId = newContact.id;
+      contactIsNew = true;
 
       await supabase.from("contact_channels").insert({
         contact_id: contactId,
@@ -270,6 +273,14 @@ export async function processComment({
       } catch (err) {
         console.error("Failed to execute comment flow:", err);
       }
+    }
+
+    if (contactIsNew) {
+      await fireContactEvent(supabase, {
+        workspaceId: channel.workspace_id,
+        contactId,
+        event: "contact_created",
+      });
     }
 
     await supabase.from("analytics_events").insert({

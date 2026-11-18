@@ -24,6 +24,16 @@ const isBuilderTriggerType = (t: string): t is BuilderTriggerType =>
  */
 export const DM_EVENT_KINDS = ["story_reply", "story_mention", "ref_url"] as const;
 export type DmEventKind = (typeof DM_EVENT_KINDS)[number];
+/** "Eventos de contactos" (see lib/contact-events.ts), also stored as tagged keyword rows. */
+const CONTACT_EVENT_TYPES = [
+  "contact_created",
+  "tag_added",
+  "tag_removed",
+  "custom_field_changed",
+  "sequence_subscribed",
+  "sequence_unsubscribed",
+] as const;
+
 const isDmEventKind = (t: string): t is DmEventKind =>
   (DM_EVENT_KINDS as readonly string[]).includes(t);
 
@@ -122,6 +132,16 @@ function nodeTriggers(
             is_active: true,
             priority: 0,
           },
+        ];
+      }
+
+      if ((CONTACT_EVENT_TYPES as readonly string[]).includes(nodeType)) {
+        const c: Record<string, any> = { kind: "contact_event", event: nodeType, nodeId: n.id };
+        if (typeof data.tagName === "string" && data.tagName.trim()) c.tagName = data.tagName.trim();
+        if (typeof data.fieldSlug === "string" && data.fieldSlug.trim()) c.fieldSlug = data.fieldSlug.trim();
+        if (typeof data.sequenceId === "string" && data.sequenceId) c.sequenceId = data.sequenceId;
+        return [
+          { flow_id: flowId, channel_id: null, type: "keyword" as TriggerType, config: c, is_active: true, priority: 0 },
         ];
       }
 

@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { CommentTriggerWizard } from "./CommentTriggerWizard";
 import { TriggerPickerModal, findTriggerOption } from "./TriggerPicker";
-import { RefUrlPanel, StoryMentionInfo, StoryReplyWizard } from "./DmEventTriggerPanels";
+import { ContactEventPanel, RefUrlPanel, StoryMentionInfo, StoryReplyWizard } from "./DmEventTriggerPanels";
 
 interface Keyword {
   value: string;
@@ -108,6 +108,11 @@ export function TriggerPanel({ data: rawData, onChange }: TriggerPanelProps) {
       {triggerType === "ref_url" && (
         <div className="border-t border-border pt-5">
           <RefUrlPanel data={data} onChange={onChange} />
+        </div>
+      )}
+      {currentOption?.category === "Evento de contactos" && (
+        <div className="border-t border-border pt-5">
+          <ContactEventPanel data={data} onChange={onChange} event={triggerType} />
         </div>
       )}
       {triggerType === "story_mention" && (

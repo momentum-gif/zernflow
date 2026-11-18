@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { executeFlow, resumeSession } from "@/lib/flow-engine/engine";
+import { fireContactEvent } from "@/lib/contact-events";
 import { matchTrigger } from "@/lib/flow-engine/trigger-matcher";
 import { resolveWebhookSecret, verifyWebhookSignature } from "@/lib/zernio-webhook";
 import { upsertContactForSender } from "@/lib/inbox-sync";
@@ -361,6 +362,14 @@ async function processMessageEvent(
         }
       }
     }
+  }
+
+  if (!contact.existed) {
+    await fireContactEvent(supabase, {
+      workspaceId: channel.workspace_id,
+      contactId,
+      event: "contact_created",
+    });
   }
 }
 

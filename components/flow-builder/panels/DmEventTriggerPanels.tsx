@@ -240,3 +240,82 @@ export function StoryMentionInfo() {
     </div>
   );
 }
+
+/* ---------------------------- Eventos de contactos ---------------------------- */
+
+const CONTACT_EVENT_TEXT: Record<string, string> = {
+  contact_created: "Se activa cuando una persona te escribe o comenta por primera vez y se crea su contacto.",
+  tag_added: "Se activa cuando se le aplica una etiqueta a un contacto.",
+  tag_removed: "Se activa cuando se le quita una etiqueta a un contacto.",
+  custom_field_changed: "Se activa cuando cambia el valor de un campo personalizado del contacto.",
+  sequence_subscribed: "Se activa cuando un contacto entra en una secuencia.",
+  sequence_unsubscribed: "Se activa cuando un contacto sale de una secuencia.",
+};
+
+export function ContactEventPanel({
+  data,
+  onChange,
+  event,
+}: PanelProps & { event: string }) {
+  const [sequences, setSequences] = useState<Array<{ id: string; name: string }>>([]);
+  const isSequence = event === "sequence_subscribed" || event === "sequence_unsubscribed";
+
+  useEffect(() => {
+    if (!isSequence) return;
+    import("@/lib/supabase/client").then(async ({ createClient }) => {
+      const { data: rows } = await createClient().from("sequences").select("id, name").order("name");
+      setSequences(rows ?? []);
+    });
+  }, [isSequence]);
+
+  const inputClass =
+    "w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">{CONTACT_EVENT_TEXT[event]}</p>
+
+      {(event === "tag_added" || event === "tag_removed") && (
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-foreground">Etiqueta</label>
+          <input
+            value={typeof data.tagName === "string" ? data.tagName : ""}
+            onChange={(e) => onChange({ ...data, tagName: e.target.value })}
+            placeholder="Deja vacío para cualquier etiqueta"
+            className={inputClass}
+          />
+        </div>
+      )}
+
+      {event === "custom_field_changed" && (
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-foreground">Campo (slug)</label>
+          <input
+            value={typeof data.fieldSlug === "string" ? data.fieldSlug : ""}
+            onChange={(e) => onChange({ ...data, fieldSlug: e.target.value })}
+            placeholder="Deja vacío para cualquier campo"
+            className={inputClass}
+          />
+        </div>
+      )}
+
+      {isSequence && (
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-foreground">Secuencia</label>
+          <select
+            value={typeof data.sequenceId === "string" ? data.sequenceId : ""}
+            onChange={(e) => onChange({ ...data, sequenceId: e.target.value })}
+            className={inputClass}
+          >
+            <option value="">Cualquier secuencia</option>
+            {sequences.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}

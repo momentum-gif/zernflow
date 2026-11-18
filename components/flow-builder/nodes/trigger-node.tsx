@@ -20,6 +20,12 @@ const triggerLabels: Record<string, string> = {
   story_reply: "El usuario responde a tu historia",
   story_mention: "El usuario te menciona en su historia",
   ref_url: "El usuario hace clic en un enlace de referencia",
+  contact_created: "Nuevo contacto creado",
+  tag_added: "Se aplica una etiqueta",
+  tag_removed: "Se elimina una etiqueta",
+  custom_field_changed: "Cambia un campo personalizado",
+  sequence_subscribed: "Entra a una secuencia",
+  sequence_unsubscribed: "Sale de una secuencia",
   comment_keyword: "El usuario comenta tu publicación o Reel",
 };
 
