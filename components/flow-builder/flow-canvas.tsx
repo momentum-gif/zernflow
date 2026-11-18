@@ -571,6 +571,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
                 source: state.fromNode.id,
                 sourceHandle: state.fromHandle?.id ?? null,
                 screen: { x: point.clientX, y: point.clientY },
+                from: state.from ? { x: state.from.x, y: state.from.y } : null,
               });
             }}
             onDrop={onDrop}

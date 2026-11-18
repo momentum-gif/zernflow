@@ -8,6 +8,8 @@ export interface PendingConnection {
   source: string;
   sourceHandle: string | null;
   screen: { x: number; y: number };
+  /** Where the dragged connector started, in flow coordinates. */
+  from?: { x: number; y: number } | null;
 }
 
 const OPTIONS: Array<{ label: string; type: string; actionType?: string }> = [
@@ -29,7 +31,11 @@ export function ConnectDropMenu({
   onClose: () => void;
   onCreated: (id: string) => void;
 }) {
-  const { setNodes, setEdges, screenToFlowPosition } = useReactFlow();
+  const { setNodes, setEdges, screenToFlowPosition, flowToScreenPosition } = useReactFlow();
+  // Keep the dragged line on screen while the menu is open, like ManyChat.
+  const start = pending.from ? flowToScreenPosition(pending.from) : null;
+  const end = pending.screen;
+  const dx = start ? Math.max(40, Math.abs(end.x - start.x) / 2) : 0;
 
   function create(type: string, actionType?: string) {
     const id = getNodeId();
@@ -55,6 +61,17 @@ export function ConnectDropMenu({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
+      {start && (
+        <svg className="pointer-events-none fixed inset-0 z-40 h-full w-full">
+          <path
+            d={`M ${start.x} ${start.y} C ${start.x + dx} ${start.y}, ${end.x - dx} ${end.y}, ${end.x} ${end.y}`}
+            fill="none"
+            stroke="#94a3b8"
+            strokeWidth={2}
+          />
+          <circle cx={end.x} cy={end.y} r={4} fill="#94a3b8" />
+        </svg>
+      )}
       <div
         className="fixed z-50 w-60 overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
         style={{ left: pending.screen.x + 8, top: Math.max(8, pending.screen.y - 20) }}
