@@ -36,7 +36,6 @@ export function showAlert(title: string): Promise<void> {
 
 export function DialogHost() {
   const [items, setItems] = useState<Request[]>([]);
-  const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const okRef = useRef<HTMLButtonElement>(null);
   const current = items[0];
@@ -56,7 +55,6 @@ export function DialogHost() {
   useEffect(() => {
     if (!current) return;
     if (current.kind === "text") {
-      setText(current.value);
       setTimeout(() => inputRef.current?.select(), 0);
     } else {
       setTimeout(() => okRef.current?.focus(), 0);
@@ -67,7 +65,7 @@ export function DialogHost() {
 
   function close(ok: boolean) {
     const r = current!;
-    if (r.kind === "text") r.resolve(ok ? text : null);
+    if (r.kind === "text") r.resolve(ok ? (inputRef.current?.value ?? "") : null);
     else if (r.kind === "confirm") r.resolve(ok);
     else r.resolve();
     setItems((xs) => xs.slice(1));
@@ -92,8 +90,8 @@ export function DialogHost() {
         {current.kind === "text" && (
           <input
             ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
+            key={items.length + current.title}
+            defaultValue={current.value}
             className="mt-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-blue-500"
           />
         )}
