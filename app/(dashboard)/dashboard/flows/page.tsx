@@ -12,10 +12,12 @@ import {
 } from "@/components/automation/automation-list";
 import type { Json } from "@/lib/types/database";
 import { computeFlowStats } from "@/lib/automation-stats";
+import { isFlowStopped } from "@/lib/flow-triggers";
 
 const statusBadge: Record<string, { label: string; classes: string }> = {
   published: { label: "ACTIVO", classes: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
   draft: { label: "BORRADOR", classes: "bg-muted text-muted-foreground" },
+  stopped: { label: "DETENIDA", classes: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" },
   archived: { label: "EN PAPELERA", classes: "bg-muted text-muted-foreground" },
 };
 
@@ -192,7 +194,10 @@ export default async function FlowsPage({
               ))}
 
             {flows.map((flow) => {
-              const badge = statusBadge[flow.status] ?? statusBadge.draft;
+              const badge =
+                flow.status === "published" && isFlowStopped(flow.nodes)
+                  ? statusBadge.stopped
+                  : statusBadge[flow.status] ?? statusBadge.draft;
               const s = stats.get(flow.id);
               const ctr = s && s.ctr !== null ? `${s.ctr}%` : "n/a";
               const row = (

@@ -19,7 +19,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Copy, Redo2, Rocket, Loader2, History, Play, Download, Trash2, MoreVertical, Undo2 } from "lucide-react";
+import { Check, ChevronRight, Copy, Redo2, Rocket, Loader2, History, Play, Download, Trash2, MoreVertical, Undo2 } from "lucide-react";
 import { refreshButtonPayloads } from "@/lib/flow-payloads";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -43,6 +43,8 @@ import { ActionsNode } from "./nodes/actions-node";
 import { FlowStatsProvider } from "./flow-stats-context";
 import { PreviewSimulator } from "./preview-simulator";
 import { ConnectDropMenu, type PendingConnection } from "./connect-drop-menu";
+import { validateFlow } from "@/lib/flow-validation";
+import { isFlowStopped } from "@/lib/flow-triggers";
 import { CanvasControls, arrangeNodes } from "./add-step-menu";
 
 const nodeTypes: NodeTypes = {
@@ -83,6 +85,21 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const [versionPanelOpen, setVersionPanelOpen] = useState(false);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // ManyChat-style notices after "Publicar En Vivo" (red = problem, green = live).
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4500);
+    return () => clearTimeout(t);
+  }, [notice]);
+  // What was last published, to show "✓ Guardado" on the button until something changes.
+  const contentKey = (ns: Node[], es: Edge[]) =>
+    JSON.stringify([
+      ns.map((n) => [n.id, n.type, n.data]),
+      es.map((e) => [e.source, e.sourceHandle ?? null, e.target]),
+    ]);
+  const [publishedKey, setPublishedKey] = useState<string | null>(null);
+  const publishedInit = useRef(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
@@ -309,6 +326,13 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
     }
   }, [flow.id, router]);
   const handlePublish = useCallback(async () => {
+    // Like ManyChat: check every step first; if one is incomplete, open it and stop.
+    const problem = validateFlow(nodes as never);
+    if (problem) {
+      setSelectedNodeId(problem.nodeId);
+      setNotice({ ok: false, text: problem.message });
+      return;
+    }
     setPublishing(true);
     try {
       // First save the current state
@@ -325,11 +349,28 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
       }
       setSaveError(null);
       setLastSaved(new Date());
+      setPublishedKey(contentKey(nodes, edges));
+      setNotice({ ok: true, text: "La automatización está activa" });
       router.refresh();
     } finally {
       setPublishing(false);
     }
-  }, [saveFlow, flow.id]);
+  }, [saveFlow, flow.id, nodes, edges]);
+
+  // On open: a published automation with no edits after publishing shows "✓ Guardado".
+  useEffect(() => {
+    if (publishedInit.current) return;
+    publishedInit.current = true;
+    const f = flow as unknown as { status?: string; published_at?: string | null; updated_at?: string };
+    if (f.status === "published" && f.published_at && f.updated_at) {
+      if (new Date(f.updated_at).getTime() <= new Date(f.published_at).getTime() + 5000) {
+        setPublishedKey(contentKey(nodes, edges));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const upToDate = publishedKey !== null && publishedKey === contentKey(nodes, edges);
+  const stopped = flow.status === "published" && isFlowStopped(nodes);
 
   return (
     <div className="flex h-full flex-col">
@@ -359,7 +400,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
                 : "bg-muted text-muted-foreground"
             )}
           >
-            {flow.status === "published" ? "ACTIVO" : flow.status === "archived" ? "EN PAPELERA" : "BORRADOR"}
+            {stopped ? "DETENIDA" : flow.status === "published" ? "ACTIVO" : flow.status === "archived" ? "EN PAPELERA" : "BORRADOR"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -410,11 +451,20 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           </button>
           <button
             onClick={handlePublish}
-            disabled={publishing}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+            disabled={publishing || upToDate}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-colors",
+              upToDate ? "bg-blue-600/40" : "bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+            )}
           >
-            {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
-            Publicar en vivo
+            {publishing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : upToDate ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <Rocket className="h-3.5 w-3.5" />
+            )}
+            {upToDate ? "Guardado" : "Publicar en vivo"}
           </button>
 
           <div className="relative">
@@ -533,6 +583,20 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
         </div>
       </div>
 
+      {notice && (
+        <div
+          className={cn(
+            "fixed bottom-6 right-6 z-[60] flex max-w-xs items-start gap-3 rounded-lg px-4 py-3 text-sm text-white shadow-xl",
+            notice.ok ? "bg-emerald-700" : "bg-red-700"
+          )}
+        >
+          <span className="flex-1">{notice.text}</span>
+          <button type="button" onClick={() => setNotice(null)} className="opacity-80 hover:opacity-100" aria-label="Cerrar">
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Canvas area */}
       <div className="flex flex-1 overflow-hidden">
         {selectedNode && !versionPanelOpen && (
@@ -543,6 +607,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             onChange={onNodeDataChange}
             onClose={closeSidebar}
             onDelete={deleteNode}
+            flowId={flow.id}
           />
         )}
         <div ref={reactFlowWrapper} className="relative flex-1">

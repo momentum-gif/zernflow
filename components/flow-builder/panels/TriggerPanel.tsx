@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import { useCallback, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { CommentTriggerWizard } from "./CommentTriggerWizard";
@@ -32,7 +34,12 @@ const matchTypes: Array<{ value: "exact" | "contains" | "startsWith"; label: str
   { value: "startsWith", label: "Empieza con" },
 ];
 
-export function TriggerPanel({ data: rawData, onChange }: TriggerPanelProps) {
+export function TriggerPanel({
+  data: rawData,
+  onChange,
+  flowId,
+  nodeId,
+}: TriggerPanelProps & { flowId?: string; nodeId?: string }) {
   const data = rawData as TriggerPanelData;
   const triggerType = data.triggerType || "keyword";
   const keywords = data.keywords || [];
@@ -238,6 +245,37 @@ export function TriggerPanel({ data: rawData, onChange }: TriggerPanelProps) {
           </p>
         </div>
       )}
+      {/* ManyChat: "Activa este disparador" (off = the automation stops answering it). */}
+      <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+        <span className="text-sm">Activa este disparador</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={(rawData as { active?: boolean }).active !== false}
+          onClick={() => {
+            const next = (rawData as { active?: boolean }).active === false;
+            onChange({ ...rawData, active: next });
+            if (flowId && nodeId) {
+              fetch(`/api/v1/flows/${flowId}/trigger-active`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nodeId, active: next }),
+              }).catch(() => {});
+            }
+          }}
+          className={cn(
+            "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+            (rawData as { active?: boolean }).active !== false ? "bg-blue-600" : "bg-neutral-600"
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
+              (rawData as { active?: boolean }).active !== false ? "left-[18px]" : "left-0.5"
+            )}
+          />
+        </button>
+      </div>
     </div>
   );
 }

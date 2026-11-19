@@ -86,7 +86,12 @@ export function TriggerNode({ id, data, selected }: NodeProps) {
       </div>
       <div className="p-3">
         <div className="rounded-xl bg-muted/60 px-3 py-2">
-          <p className="text-xs font-medium text-foreground">{title}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-medium text-foreground">{title}</p>
+            {(nodeData as { active?: boolean }).active === false && (
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">Desactivado</span>
+            )}
+          </div>
           {nodeData.label && <p className="mt-0.5 text-[11px] text-muted-foreground">{nodeData.label}</p>}
           {detail && <p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p>}
         </div>

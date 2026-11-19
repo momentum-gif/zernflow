@@ -21,6 +21,7 @@ interface NodeConfigSidebarProps {
   onChange: (nodeId: string, data: Record<string, unknown>) => void;
   onClose: () => void;
   onDelete: (nodeId: string) => void;
+  flowId?: string;
 }
 
 // BFS backwards over edges; the visited set makes cycles terminate.
@@ -120,7 +121,7 @@ const nodeTypeConfig: Record<string, { label: string; icon: typeof Cog; color: s
   },
 };
 
-export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDelete }: NodeConfigSidebarProps) {
+export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDelete, flowId }: NodeConfigSidebarProps) {
   const nodeType = node.type || "action";
   const config = nodeTypeConfig[nodeType] || nodeTypeConfig.action;
   const Icon = config.icon;
@@ -154,7 +155,7 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
     const data = node.data as Record<string, unknown>;
     switch (nodeType) {
       case "trigger":
-        return <TriggerPanel data={data} onChange={handleChange} />;
+        return <TriggerPanel data={data} onChange={handleChange} flowId={flowId} nodeId={node.id} />;
       case "sendMessage":
         return (
           <SendMessagePanel

@@ -60,7 +60,23 @@ export function buildDesiredTriggers(
   flowId: string,
   flowEdges: Array<Record<string, unknown>> = [],
 ): DesiredTrigger[] {
-  return [...nodeTriggers(flowNodes, flowId), ...buttonTriggers(flowNodes, flowEdges, flowId)];
+  // ManyChat "Activa este disparador": a switched-off trigger keeps its row but inactive.
+  const inactive = new Set(
+    flowNodes
+      .filter((n) => n?.type === "trigger" && ((n.data ?? {}) as Record<string, unknown>).active === false)
+      .map((n) => n.id as string)
+  );
+  return [...nodeTriggers(flowNodes, flowId), ...buttonTriggers(flowNodes, flowEdges, flowId)].map((row) =>
+    inactive.has(String((row.config as Record<string, unknown>)?.nodeId ?? "")) ? { ...row, is_active: false } : row
+  );
+}
+
+/** "STOPPED" in ManyChat: published, but every trigger is switched off. */
+export function isFlowStopped(flowNodes: unknown): boolean {
+  const triggers = (Array.isArray(flowNodes) ? flowNodes : []).filter(
+    (n: { type?: string }) => n?.type === "trigger"
+  ) as Array<{ data?: { active?: boolean } }>;
+  return triggers.length > 0 && triggers.every((n) => n.data?.active === false);
 }
 
 /**
