@@ -174,6 +174,18 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
 
   const isCommentReply = useIsCommentReply(nodeId);
 
+  // Drag a block by its six dots to reorder it, like ManyChat.
+  const [armed, setArmed] = useState<number | null>(null);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const moveMessage = (from: number, to: number) => {
+    if (from === to) return;
+    const msgs = [...messages];
+    const [m] = msgs.splice(from, 1);
+    msgs.splice(to, 0, m);
+    onChange({ ...data, messages: msgs });
+  };
+
   return (
     <div className="space-y-4">
       {isCommentReply && (
@@ -183,6 +195,39 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
         </p>
       )}
       {messages.map((message, msgIndex) => (
+        <div
+          key={msgIndex}
+          draggable={armed === msgIndex}
+          onMouseDown={(e) => setArmed((e.target as Element).closest("[data-drag-handle]") ? msgIndex : null)}
+          onMouseUp={() => setArmed(null)}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", String(msgIndex));
+            setDragFrom(msgIndex);
+          }}
+          onDragOver={(e) => {
+            if (dragFrom === null) return;
+            e.preventDefault();
+            setDragOver(msgIndex);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (dragFrom !== null) moveMessage(dragFrom, msgIndex);
+            setDragFrom(null);
+            setDragOver(null);
+            setArmed(null);
+          }}
+          onDragEnd={() => {
+            setDragFrom(null);
+            setDragOver(null);
+            setArmed(null);
+          }}
+          className={cn(
+            "rounded-lg transition-opacity",
+            dragFrom === msgIndex && "opacity-40",
+            dragOver === msgIndex && dragFrom !== msgIndex && "ring-2 ring-blue-500"
+          )}
+        >
         <MessageEditor
           key={msgIndex}
           index={msgIndex}
@@ -193,6 +238,7 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
           availableVariables={availableVariables}
           nodeId={nodeId}
         />
+        </div>
       ))}
 
       {data.question && (
@@ -349,7 +395,10 @@ function MessageEditor({
   if (block === "delay") {
     return (
       <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
-        <span className="text-xs font-semibold text-muted-foreground">Retraso</span>
+        <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <GripVertical data-drag-handle className="h-3.5 w-3.5 cursor-grab text-muted-foreground/60 active:cursor-grabbing" />
+          Retraso
+        </span>
         <select
           value={String(message.delaySeconds ?? 3)}
           onChange={(e) => onChange({ ...message, delaySeconds: Number(e.target.value) })}
@@ -372,7 +421,10 @@ function MessageEditor({
     return (
       <div className="rounded-lg border border-border bg-card p-3">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold text-muted-foreground">{BLOCK_LABEL[block]}</span>
+          <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <GripVertical data-drag-handle className="h-3.5 w-3.5 cursor-grab text-muted-foreground/60 active:cursor-grabbing" />
+            {BLOCK_LABEL[block]}
+          </span>
           <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-red-500" aria-label="Quitar">
             <X className="h-3.5 w-3.5" />
           </button>
@@ -391,7 +443,7 @@ function MessageEditor({
       {/* Message header */}
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60" />
+          <GripVertical data-drag-handle className="h-3.5 w-3.5 cursor-grab text-muted-foreground/60 active:cursor-grabbing" />
           <span className="text-xs font-semibold text-muted-foreground">
             {block ? BLOCK_LABEL[block] : `Mensaje ${index + 1}`}
           </span>
