@@ -251,6 +251,7 @@ export async function resumeSession(
   }
 
   context.variables = (session.variables as Record<string, string>) || {};
+  await fillContactVariables(supabase, context);
 
   // The resume is driven by a fresh reply; make {{message}} reflect it.
   if (context.incomingMessage.text) {
@@ -1413,6 +1414,8 @@ function resolveVariablePath(
   return value;
 }
 
+const CONTACT_VARS = new Set(["nombre", "nombre_completo", "usuario"]);
+
 function interpolateVariables(
   text: string,
   variables: Record<string, unknown>
@@ -1421,6 +1424,9 @@ function interpolateVariables(
   // httpRequest JSON responses). Unresolved paths leave the token literal.
   return text.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (token, path: string) => {
     const value = resolveVariablePath(variables, path);
+    // Contact variables we could not resolve are dropped instead of sending
+    // "{{nombre}}" to the contact.
+    if ((value === null || value === undefined) && CONTACT_VARS.has(path)) return "";
     if (value === null || value === undefined) return token;
     return typeof value === "object" ? JSON.stringify(value) : String(value);
   });
@@ -1751,6 +1757,7 @@ export async function resumeNoReply(
   if (channel?.late_account_id && !context.lateAccountId) context.lateAccountId = channel.late_account_id;
 
   context.variables = { ...((session.variables as Record<string, string>) || {}) };
+  await fillContactVariables(supabase, context);
   delete context.variables.__ci_expires_at;
   delete context.variables.__ci_retries;
   await supabase
@@ -1935,4 +1942,21 @@ async function sendPrivateReplyStep(
     lateAccountId
   );
   context.variables.__pr_sent = "1";
+}
+
+
+/** {{nombre}} / {{nombre_completo}} from the contact record when the run does not have them yet. */
+async function fillContactVariables(supabase: SupabaseClient<Database>, context: FlowExecutionContext) {
+  context.variables ??= {};
+  if (context.variables.nombre) return;
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("display_name")
+    .eq("id", context.contactId)
+    .maybeSingle();
+  const full = contact?.display_name?.trim();
+  if (full && !/^\d+$/.test(full)) {
+    context.variables.nombre_completo ??= full;
+    context.variables.nombre = full.split(/\s+/)[0];
+  }
 }
