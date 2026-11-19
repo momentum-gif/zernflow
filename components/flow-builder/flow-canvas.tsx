@@ -1,5 +1,7 @@
 "use client";
 
+import { askConfirm } from "@/components/dialogs";
+
 import {
   ReactFlow,
   Background,
@@ -548,7 +550,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted"
                     onClick={async () => {
                       setMoreOpen(false);
-                      if (!window.confirm("¿Volver a la última versión publicada? Se perderán los cambios sin publicar.")) return;
+                      if (!(await askConfirm("¿Volver a la última versión publicada? Se perderán los cambios sin publicar.", { destructive: true }))) return;
                       const { createClient } = await import("@/lib/supabase/client");
                       const { data: v } = await createClient()
                         .from("flow_versions")

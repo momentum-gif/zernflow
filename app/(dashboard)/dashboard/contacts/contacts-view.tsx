@@ -1,5 +1,7 @@
 "use client";
 
+import { askText, askConfirm } from "@/components/dialogs";
+
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Filter, Search, X, Users, Pause, Play, CheckCircle2, Hash, AtSign, MessageCircle, Loader2 } from "lucide-react";
@@ -597,14 +599,14 @@ export function ContactsView({
       return n;
     });
 
-  function bulk(action: "addTag" | "removeTag" | "delete") {
+  async function bulk(action: "addTag" | "removeTag" | "delete") {
     const ids = [...selected];
     if (!ids.length) return;
     let tagName: string | undefined;
     if (action !== "delete") {
-      tagName = window.prompt(action === "addTag" ? "Etiqueta a añadir" : "Etiqueta a quitar") ?? "";
+      tagName = (await askText(action === "addTag" ? "Etiqueta a añadir" : "Etiqueta a quitar")) ?? "";
       if (!tagName.trim()) return;
-    } else if (!window.confirm(`¿Eliminar ${ids.length} contacto(s)? No se puede deshacer.`)) return;
+    } else if (!(await askConfirm(`¿Eliminar ${ids.length} contacto(s)? No se puede deshacer.`, { destructive: true }))) return;
     setBulkOpen(false);
     start(async () => {
       await bulkContacts(ids, action, tagName);

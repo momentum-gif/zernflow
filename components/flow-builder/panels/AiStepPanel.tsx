@@ -1,5 +1,7 @@
 "use client";
 
+import { askText } from "@/components/dialogs";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useReactFlow, useStore } from "@xyflow/react";
@@ -51,7 +53,7 @@ function FieldPicker({ value, onChange }: { value?: string; onChange: (slug: str
   }, [open]);
 
   async function createField() {
-    const name = window.prompt("Nombre del nuevo campo de usuario", q || "");
+    const name = await askText("Nombre del nuevo campo de usuario", q || "");
     if (!name?.trim()) return;
     const supabase = createClient();
     const {

@@ -1,5 +1,7 @@
 "use client";
 
+import { askText, askConfirm } from "@/components/dialogs";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -108,9 +110,9 @@ export function AutomationRowMenu({
   const { busy, run } = useAction();
   const [moving, setMoving] = useState(false);
 
-  function rename(close: () => void) {
+  async function rename(close: () => void) {
     close();
-    const name = window.prompt("Nuevo nombre", flow.name);
+    const name = await askText("Renombrar automatización", flow.name);
     if (!name?.trim() || name.trim() === flow.name) return;
     run(`/api/v1/flows/${flow.id}`, json({ name: name.trim() }), "No se pudo renombrar.");
   }
@@ -270,8 +272,8 @@ export function NewFolderButton({ disabled }: { disabled?: boolean }) {
     <button
       disabled={busy || disabled}
       title={disabled ? "Falta activar las carpetas en Supabase" : undefined}
-      onClick={() => {
-        const name = window.prompt("Nombre de la carpeta");
+      onClick={async () => {
+        const name = await askText("Nombre de la carpeta");
         if (!name?.trim()) return;
         run(
           "/api/v1/automation-folders",
@@ -294,9 +296,9 @@ export function FolderRowMenu({ folder }: { folder: { id: string; name: string }
         <>
           <button
             className={itemClass}
-            onClick={() => {
+            onClick={async () => {
               close();
-              const name = window.prompt("Nuevo nombre", folder.name);
+              const name = await askText("Renombrar carpeta", folder.name);
               if (!name?.trim()) return;
               run(
                 `/api/v1/automation-folders/${folder.id}`,
@@ -309,9 +311,9 @@ export function FolderRowMenu({ folder }: { folder: { id: string; name: string }
           </button>
           <button
             className={`${itemClass} text-red-600`}
-            onClick={() => {
+            onClick={async () => {
               close();
-              if (!window.confirm(`¿Eliminar la carpeta "${folder.name}"? Sus automatizaciones vuelven a Mis automatizaciones.`)) return;
+              if (!(await askConfirm(`¿Eliminar la carpeta "${folder.name}"? Sus automatizaciones vuelven a Mis automatizaciones.`, { destructive: true }))) return;
               run(`/api/v1/automation-folders/${folder.id}`, { method: "DELETE" }, "No se pudo eliminar.");
             }}
           >
