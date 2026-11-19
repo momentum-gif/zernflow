@@ -231,15 +231,19 @@ async function processMessageEvent(
   // ── Upsert contact ───────────────────────────────────────────────────────
 
   const senderId = msg.sender.id;
-  const senderName = msg.sender.name || msg.sender.username || senderId;
+  // The conversation carries the participant's profile (name + photo) when the
+  // message itself does not.
+  const isInbound = senderId === conv?.participantId;
+  const senderName =
+    msg.sender.name || (isInbound ? conv?.participantName : null) || msg.sender.username || senderId;
 
   const contact = await upsertContactForSender({
     supabase,
     channel,
     senderId,
     senderName,
-    senderPicture: msg.sender.picture || null,
-    senderUsername: msg.sender.username || null,
+    senderPicture: msg.sender.picture || (isInbound ? conv?.participantPicture : null) || null,
+    senderUsername: msg.sender.username || (isInbound ? conv?.participantUsername : null) || null,
     interactionAt: new Date().toISOString(),
   });
 

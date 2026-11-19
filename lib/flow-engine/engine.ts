@@ -43,9 +43,13 @@ export async function executeFlow(
 
   // Contact variables, like ManyChat's {first_name}: {{nombre}},
   // {{nombre_completo}} and {{usuario}}.
-  const fullName =
-    context.incomingMessage.sender?.name || (context.variables.commenter_name as string | undefined);
-  if (fullName && !/^\d+$/.test(fullName)) {
+  // Only a real name counts: Instagram often sends the @username as the name,
+  // and {{nombre}} must never show the username.
+  const fullName = realName(
+    context.incomingMessage.sender?.name || (context.variables.commenter_name as string | undefined),
+    context.incomingMessage.sender?.username,
+  );
+  if (fullName) {
     context.variables.nombre_completo ??= fullName;
     context.variables.nombre ??= fullName.trim().split(/\s+/)[0];
   }
@@ -755,6 +759,17 @@ async function executeSendMessage(
     // "Retraso" block: wait a few seconds between messages, like ManyChat.
     const delaySeconds = Number((msg as { delaySeconds?: number }).delaySeconds ?? 0);
     if (delaySeconds > 0) {
+      // Show "escribiendo..." to the contact during the pause, like ManyChat.
+      if (lateAccountId) {
+        try {
+          await zernio.messages.sendTypingIndicator({
+            path: { conversationId: lateConversationId },
+            body: { accountId: lateAccountId },
+          });
+        } catch (err) {
+          console.error("Typing indicator failed:", err);
+        }
+      }
       await new Promise((r) => setTimeout(r, Math.min(delaySeconds, 20) * 1000));
       continue;
     }
@@ -1951,12 +1966,26 @@ async function fillContactVariables(supabase: SupabaseClient<Database>, context:
   if (context.variables.nombre) return;
   const { data: contact } = await supabase
     .from("contacts")
-    .select("display_name")
+    .select("display_name, contact_channels(platform_username)")
     .eq("id", context.contactId)
     .maybeSingle();
-  const full = contact?.display_name?.trim();
-  if (full && !/^\d+$/.test(full)) {
+  const usernames = ((contact as unknown as { contact_channels?: { platform_username: string | null }[] })
+    ?.contact_channels ?? []).map((c) => c.platform_username);
+  const full = usernames.reduce<string | null>(
+    (name, u) => realName(name, u),
+    realName(contact?.display_name, context.variables.usuario as string | undefined),
+  );
+  if (full) {
     context.variables.nombre_completo ??= full;
     context.variables.nombre = full.split(/\s+/)[0];
   }
+}
+
+/** The name only when it is a real name: not empty, not just digits, not the @username. */
+export function realName(name: string | null | undefined, username?: string | null): string | null {
+  const n = name?.trim();
+  if (!n || /^\d+$/.test(n)) return null;
+  const u = username?.trim().replace(/^@/, "").toLowerCase();
+  if (u && n.replace(/^@/, "").toLowerCase() === u) return null;
+  return n;
 }

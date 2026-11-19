@@ -69,11 +69,25 @@ export async function upsertContactForSender({
     .single();
 
   if (existingContactChannel) {
-    if (stampExisting) {
-      await supabase
-        .from("contacts")
-        .update({ last_interaction_at: interactionAt })
-        .eq("id", existingContactChannel.contact_id);
+    // Contacts first seen through a comment only have the @username and no
+    // photo. Fill in the real name and profile photo once Instagram sends them.
+    const updates: Record<string, string> = {};
+    if (stampExisting) updates.last_interaction_at = interactionAt;
+    const { data: current } = await supabase
+      .from("contacts")
+      .select("display_name, avatar_url")
+      .eq("id", existingContactChannel.contact_id)
+      .maybeSingle();
+    if (senderPicture && current?.avatar_url !== senderPicture) updates.avatar_url = senderPicture;
+    const name = senderName?.trim();
+    const curName = current?.display_name?.trim();
+    const curIsUsername =
+      !curName || (!!senderUsername && curName.replace(/^@/, "").toLowerCase() === senderUsername.toLowerCase());
+    const nameIsReal =
+      !!name && name !== senderId && (!senderUsername || name.toLowerCase() !== senderUsername.toLowerCase());
+    if (curIsUsername && nameIsReal && name !== curName) updates.display_name = name;
+    if (Object.keys(updates).length) {
+      await supabase.from("contacts").update(updates).eq("id", existingContactChannel.contact_id);
     }
     return { contactId: existingContactChannel.contact_id, existed: true };
   }
