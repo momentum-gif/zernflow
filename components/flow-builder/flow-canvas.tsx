@@ -564,6 +564,10 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            // ManyChat: "Acción en respuesta" can only be connected to an Actions step.
+            isValidConnection={(c) =>
+              c.sourceHandle !== "reply" || nodes.find((n) => n.id === c.target)?.type === "actions"
+            }
             onConnectEnd={(event, state) => {
               if (state.isValid || !state.fromNode) return;
               const point = "changedTouches" in event ? event.changedTouches[0] : event;

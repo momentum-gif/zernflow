@@ -36,6 +36,7 @@ export function ConnectDropMenu({
   const start = pending.from ? flowToScreenPosition(pending.from) : null;
   const end = pending.screen;
   const dx = start ? Math.max(40, Math.abs(end.x - start.x) / 2) : 0;
+  const lineColor = pending.sourceHandle === "reply" ? "#f59e0b" : pending.sourceHandle === "noreply" ? "#ef4444" : "#94a3b8";
 
   function create(type: string, actionType?: string) {
     const id = getNodeId();
@@ -66,17 +67,18 @@ export function ConnectDropMenu({
           <path
             d={`M ${start.x} ${start.y} C ${start.x + dx} ${start.y}, ${end.x - dx} ${end.y}, ${end.x} ${end.y}`}
             fill="none"
-            stroke="#94a3b8"
+            stroke={lineColor}
             strokeWidth={2}
           />
-          <circle cx={end.x} cy={end.y} r={4} fill="#94a3b8" />
+          <circle cx={end.x} cy={end.y} r={4} fill={lineColor} />
         </svg>
       )}
       <div
         className="fixed z-50 w-60 overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
         style={{ left: pending.screen.x + 8, top: Math.max(8, pending.screen.y - 20) }}
       >
-        {OPTIONS.map((o) => (
+        {/* ManyChat: "Acción en respuesta" only leads to an Actions step. */}
+        {(pending.sourceHandle === "reply" ? OPTIONS.filter((o) => o.type === "actions") : OPTIONS).map((o) => (
           <button
             key={o.label}
             onClick={() => create(o.type, o.actionType)}
