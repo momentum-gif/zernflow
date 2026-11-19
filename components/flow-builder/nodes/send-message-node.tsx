@@ -156,7 +156,7 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
           <p className="rounded-lg bg-violet-100 px-3 py-1.5 text-center text-[11px] font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200">
             Esperando {INPUT_LABEL[nodeData.question.inputType ?? "text"] ?? "Texto"} del contacto…
           </p>
-          <div className="relative flex items-center justify-end gap-1 pt-1 text-[10px] text-muted-foreground">
+          <div className="relative flex items-center justify-end gap-1 py-1.5 text-[10px] text-muted-foreground">
             <span className="text-amber-500">⚡</span> Acción en respuesta
             <Handle
               type="source"
@@ -165,7 +165,7 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
               className="!-right-[19px] !h-3 !w-3 !border-2 !border-amber-500 !bg-white"
             />
           </div>
-          <div className="relative flex items-center justify-end text-[10px] text-muted-foreground">
+          <div className="relative flex items-center justify-end py-1.5 text-[10px] text-muted-foreground">
             Si el contacto no ha respondido
             <Handle
               type="source"
