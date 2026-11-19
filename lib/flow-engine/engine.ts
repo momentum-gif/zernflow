@@ -1687,7 +1687,7 @@ async function askMessageQuestion(
   context.variables ??= {};
   delete context.variables.__ci_retries;
   // An AI Step right after this question reads the question and the answer.
-  context.variables.__last_question = q.text;
+  context.variables.__last_question = interpolateVariables(q.text, context.variables);
   const ms = Number(q.expireValue ?? 0) * (UNIT_MS[q.expireUnit ?? "minutes"] ?? 60_000);
   let expiresAt: string | null = null;
   if (ms > 0) {
