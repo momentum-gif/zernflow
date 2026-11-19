@@ -1818,7 +1818,7 @@ async function executeAiStep(
 
   let turn: { reply: string; fields: Record<string, string>; done: boolean };
   try {
-    turn = await runAiStepTurn(workspace?.ai_api_key ?? null, data, history);
+    turn = await runAiStepTurn(workspace?.ai_api_key ?? null, data, history, context.variables as Record<string, string>);
   } catch (err) {
     console.error("[ai-step]", err);
     await finish();

@@ -87,12 +87,17 @@ REGLAS (en este orden):
 3. Solo si de verdad falta algo, haz UNA pregunta corta, en el mismo estilo que el contexto. Nunca preguntes algo que ya respondió.
 4. Respeta al pie de la letra las reglas de estilo y de cantidad de preguntas del contexto.
 
-Cada vez responde SOLO con JSON:
-{"reply": "el próximo mensaje para el contacto (vacío si no hace falta decir nada más)", "fields": {"campo": "valor"} con los datos ya obtenidos para los campos indicados, "done": true cuando todas las tareas estén completas}`;
+Cada vez responde SOLO con JSON, en este orden (primero decide, después escribe):
+{"fields": {"campo": "valor"} con los datos que YA están claros (deja fuera los que no), "done": true si todas las tareas ya se pueden completar, "reply": "" si done es true; si no, el próximo mensaje para el contacto}`;
 }
 
 /** One AI Step turn: what to say next, data to save and whether the step is finished. */
-export async function runAiStepTurn(apiKey: string | null, data: AiStepData, history: AiTurn[]) {
+export async function runAiStepTurn(
+  apiKey: string | null,
+  data: AiStepData,
+  history: AiTurn[],
+  known: Record<string, string> = {}
+) {
   const gw = gateway(apiKey);
   const { text } = await generateText({
     model: gw(data.model || DEFAULT_AI_MODEL),
@@ -107,7 +112,12 @@ export async function runAiStepTurn(apiKey: string | null, data: AiStepData, his
   for (const [k, v] of Object.entries(parsed.fields ?? {})) {
     if (v !== null && v !== undefined && String(v).trim()) fields[k] = String(v).trim();
   }
-  return { reply: applyStyle(String(parsed.reply ?? "").trim(), data), fields, done: !!parsed.done };
+  // Every field the tasks ask for is filled → the step is finished, whatever the
+  // model said (it sometimes keeps asking after it already has the answer).
+  const required = (data.tasks ?? []).filter((t) => t.saveField && t.fieldSlug).map((t) => t.fieldSlug!);
+  const allFilled = required.length > 0 && required.every((slug) => fields[slug] ?? known[slug]);
+  const done = !!parsed.done || allFilled;
+  return { reply: done ? "" : applyStyle(String(parsed.reply ?? "").trim(), data), fields, done };
 }
 
 

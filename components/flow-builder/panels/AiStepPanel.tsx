@@ -157,7 +157,7 @@ function AiChatPreview({ data, anchor, nodeId }: { data: StepData; anchor: HTMLE
       const res = await fetch("/api/v1/ai/step-preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: { goal: data.goal, context: data.context, tasks: data.tasks }, history: next }),
+        body: JSON.stringify({ data: { goal: data.goal, context: data.context, tasks: data.tasks }, history: next, known: saved }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "No se pudo responder");
