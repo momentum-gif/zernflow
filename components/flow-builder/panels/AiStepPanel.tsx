@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useStore, type Edge, type Node } from "@xyflow/react";
+import { useReactFlow, useStore } from "@xyflow/react";
 import { Sparkles, Loader2, Plus, GripVertical, X, Search, Mail, Send, HelpCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -123,12 +123,24 @@ function FieldPicker({ value, onChange }: { value?: string; onChange: (slug: str
 /** "Chatea con AI Step aquí para ver cómo gestiona las conversaciones reales". */
 function AiChatPreview({ data, anchor, nodeId }: { data: StepData; anchor: HTMLElement | null; nodeId: string }) {
   // The question of the step right before this one (what the contact is answering).
-  const prevQuestion = useStore((st) => {
-    const edge = (st.edges as Edge[]).find((e) => e.target === nodeId);
-    const src = edge && (st.nodes as Node[]).find((n) => n.id === edge.source);
-    const q = (src?.data as { question?: { text?: string } } | undefined)?.question?.text;
-    return q?.trim() || "";
-  });
+  // Walks back through steps without a question (Acciones, Condición…) up to 4 levels.
+  const { getEdges, getNodes } = useReactFlow();
+  const findPrevQuestion = () => {
+    const edges = getEdges();
+    const nodes = getNodes();
+    let current = nodeId;
+    for (let depth = 0; depth < 4; depth++) {
+      const edge = edges.find((e) => e.target === current);
+      if (!edge) return "";
+      const src = nodes.find((n) => n.id === edge.source);
+      const q = (src?.data as { question?: { text?: string } } | undefined)?.question?.text?.trim();
+      if (q) return q;
+      if (!src) return "";
+      current = src.id;
+    }
+    return "";
+  };
+  const prevQuestion = useStore(() => findPrevQuestion());
   const [pos, setPos] = useState<{ left: number; top: number; height: number } | null>(null);
   const [started, setStarted] = useState(false);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
@@ -183,12 +195,16 @@ function AiChatPreview({ data, anchor, nodeId }: { data: StepData; anchor: HTMLE
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <Sparkles className="h-6 w-6" />
             <p className="text-sm text-muted-foreground">Chatea con AI Step aquí para ver cómo gestiona las conversaciones reales</p>
+            <p className="text-[11px] text-muted-foreground">
+              {prevQuestion ? `Empieza respondiendo a: "${prevQuestion}"` : "Este paso no tiene una pregunta antes: la IA empieza la conversación."}
+            </p>
             <button
               type="button"
               onClick={() => {
                 setStarted(true);
                 setSaved({});
                 setDone(false);
+                const prevQuestion = findPrevQuestion();
                 if (prevQuestion) {
                   // Same as the real conversation: the contact answers the previous question.
                   setHistory([{ role: "assistant", content: prevQuestion }]);

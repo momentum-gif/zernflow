@@ -23,6 +23,30 @@ export interface AiTurn {
 
 export const DEFAULT_AI_MODEL = "openai/gpt-4o-mini";
 
+/**
+ * Better instruction-followers first; if one is not available (e.g. not in the
+ * free tier) the next one is used.
+ */
+const MODEL_CHAIN = ["openai/gpt-4.1-mini", "google/gemini-2.5-flash", "openai/gpt-4o-mini"];
+
+async function generateWithFallback(
+  gw: ReturnType<typeof createGateway>,
+  preferred: string | undefined,
+  args: Omit<Parameters<typeof generateText>[0], "model">
+) {
+  const chain = preferred ? [preferred, ...MODEL_CHAIN.filter((m) => m !== preferred)] : MODEL_CHAIN;
+  let lastError: unknown;
+  for (const id of chain) {
+    try {
+      return await generateText({ ...(args as Parameters<typeof generateText>[0]), model: gw(id) });
+    } catch (err) {
+      lastError = err;
+      console.warn(`[ai-step] model ${id} failed, trying the next one:`, err instanceof Error ? err.message : err);
+    }
+  }
+  throw lastError;
+}
+
 export function isAiStep(data: unknown): data is AiStepData {
   const d = data as (AiStepData & { aiStep?: boolean }) | null;
   return d?.aiStep === true || Array.isArray(d?.tasks);
@@ -48,8 +72,7 @@ function parseJson<T>(text: string): T | null {
 /** "Generar": turn "Dile a la IA lo que debe hacer" + context into an objective and tasks. */
 export async function generateAiStep(apiKey: string | null, goal: string, context: string, model?: string) {
   const gw = gateway(apiKey);
-  const { text } = await generateText({
-    model: gw(model || DEFAULT_AI_MODEL),
+  const { text } = await generateWithFallback(gw, model, {
     temperature: 0.3,
     maxOutputTokens: 600,
     system:
@@ -99,8 +122,7 @@ export async function runAiStepTurn(
   known: Record<string, string> = {}
 ) {
   const gw = gateway(apiKey);
-  const { text } = await generateText({
-    model: gw(data.model || DEFAULT_AI_MODEL),
+  const { text } = await generateWithFallback(gw, data.model, {
     temperature: 0.2,
     maxOutputTokens: 500,
     system: systemPrompt(data),
