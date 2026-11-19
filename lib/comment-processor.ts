@@ -226,6 +226,14 @@ export async function processComment({
     // Local conversation only — there is no Zernio DM conversation until the
     // flow's privateReply node creates one, so late_conversation_id stays null
     // and sendMessage nodes in comment flows are no-ops until the contact replies.
+    // Handled by an automation, so (like ManyChat) a new chat starts closed and
+    // an existing one keeps its status.
+    const { data: prevConv } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("channel_id", channel.id)
+      .eq("contact_id", contactId)
+      .maybeSingle();
     const { data: conversation } = await supabase
       .from("conversations")
       .upsert(
@@ -234,7 +242,7 @@ export async function processComment({
           channel_id: channel.id,
           contact_id: contactId,
           platform: channel.platform,
-          status: "open",
+          ...(prevConv ? {} : { status: "closed" as const }),
           last_message_at: new Date().toISOString(),
           last_message_preview: `[Comment] ${comment.text.slice(0, 80)}`,
         },

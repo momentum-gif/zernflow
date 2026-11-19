@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, MessageSquare } from "lucide-react";
+import { Search, MessageSquare, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PlatformIcon } from "@/components/platform-icon";
-import type { Database, Platform, ConversationStatus } from "@/lib/types/database";
+import type { Database, Platform } from "@/lib/types/database";
 
 type Conversation = Database["public"]["Tables"]["conversations"]["Row"] & {
   contacts: Database["public"]["Tables"]["contacts"]["Row"] | null;
@@ -28,6 +28,12 @@ function formatTime(dateStr: string | null): string {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+const STATUS_OPTIONS: Array<{ value: "open" | "closed" | "all"; label: string; hint?: string }> = [
+  { value: "open", label: "Abrir chats (predeterminado)", hint: "Requiere la atención humana" },
+  { value: "closed", label: "Chats cerrados", hint: "Marcado como cerrado o gestionado por automatización" },
+  { value: "all", label: "Todos los chats" },
+];
+
 export function ConversationList({
   conversations: initialConversations,
   workspaceId,
@@ -41,7 +47,8 @@ export function ConversationList({
 }) {
   const [conversations, setConversations] = useState(initialConversations);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ConversationStatus | "all">("open");
+  const [statusFilter, setStatusFilter] = useState<"open" | "closed" | "all">("open");
+  const [filterOpen, setFilterOpen] = useState(false);
   // Relative timestamps depend on the client's clock/locale, which differ from the
   // server's during SSR and trigger a hydration mismatch (React #418, which crashes
   // the inbox in production). Defer time rendering until after mount so the server
@@ -101,7 +108,9 @@ export function ConversationList({
   }, [workspaceId]);
 
   const filtered = conversations.filter((c) => {
-    if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    // "Chats cerrados" also covers snoozed ones: anything not waiting on a person.
+    if (statusFilter === "open" && c.status !== "open") return false;
+    if (statusFilter === "closed" && c.status === "open") return false;
     if (search) {
       const name = c.contacts?.display_name?.toLowerCase() ?? "";
       const preview = c.last_message_preview?.toLowerCase() ?? "";
@@ -135,22 +144,38 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* Status filter */}
-      <div className="flex gap-1 px-3 pb-2">
-        {(["all", "open", "closed", "snoozed"] as const).map((status) => (
-          <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            className={cn(
-              "rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors",
-              statusFilter === status
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            )}
-          >
-            {status}
-          </button>
-        ))}
+      {/* Status filter (like ManyChat) */}
+      <div className="relative px-3 pb-2">
+        <button
+          onClick={() => setFilterOpen((o) => !o)}
+          className="flex w-full items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent"
+        >
+          {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label}
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </button>
+        {filterOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
+            <div className="absolute left-3 right-3 top-11 z-50 rounded-lg border border-border bg-card p-1 shadow-lg">
+              {STATUS_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  onClick={() => {
+                    setStatusFilter(o.value);
+                    setFilterOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full flex-col items-start rounded-md px-3 py-2 text-left hover:bg-muted",
+                    statusFilter === o.value && "bg-muted"
+                  )}
+                >
+                  <span className="text-sm font-medium">{o.label}</span>
+                  {o.hint && <span className="text-xs text-muted-foreground">{o.hint}</span>}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Conversation list */}

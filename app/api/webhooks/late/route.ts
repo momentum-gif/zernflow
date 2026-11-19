@@ -258,6 +258,16 @@ async function processMessageEvent(
 
   const preview = messagePreview(msg.text);
 
+  // Like ManyChat, the status is decided after the automations run: a chat an
+  // automation handles stays closed, one nobody handles opens for a person.
+  // New conversations start closed; existing ones keep their status for now.
+  const { data: prevConv } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("channel_id", channel.id)
+    .eq("contact_id", contactId)
+    .maybeSingle();
+
   const { data: conversation } = await supabase
     .from("conversations")
     .upsert(
@@ -267,7 +277,7 @@ async function processMessageEvent(
         contact_id: contactId,
         platform: channel.platform,
         late_conversation_id: conv.id,
-        status: "open",
+        ...(prevConv ? {} : { status: "closed" as const }),
         last_message_at: new Date().toISOString(),
         last_message_preview: preview,
         unread_count: 1,
@@ -295,6 +305,7 @@ async function processMessageEvent(
 
   // ── Flow engine ───────────────────────────────────────────────────────────
 
+  let automationHandled = false;
   if (!conversation.is_automation_paused) {
     const dmEvent = detectDmEvent(payload);
     if (dmEvent) console.log("[webhook] Instagram DM event", dmEvent);
@@ -362,6 +373,7 @@ async function processMessageEvent(
       }
     }
 
+    if (handled || resumed) automationHandled = true;
     if (!handled && !resumed) {
       const trigger = await matchTrigger(supabase, {
         channelId: channel.id,
@@ -371,6 +383,7 @@ async function processMessageEvent(
         isFirstMessage: !contact.existed,
       });
       if (trigger) {
+        automationHandled = true;
         try {
           await executeFlow(supabase, {
             triggerId: trigger.id,
@@ -388,6 +401,10 @@ async function processMessageEvent(
         }
       }
     }
+  }
+
+  if (!automationHandled) {
+    await supabase.from("conversations").update({ status: "open" }).eq("id", conversation.id);
   }
 
   if (!contact.existed) {
