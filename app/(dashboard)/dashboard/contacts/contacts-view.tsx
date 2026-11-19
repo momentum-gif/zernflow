@@ -294,7 +294,7 @@ function ContactProfile({
         supabase.from("sequence_enrollments").select("status, sequences(name)").eq("contact_id", contact.id).eq("status", "active"),
         supabase
           .from("analytics_events")
-          .select("created_at, flows(name)")
+          .select("created_at, flow_id")
           .eq("contact_id", contact.id)
           .eq("event_type", "flow_started")
           .order("created_at", { ascending: false })
@@ -307,18 +307,26 @@ function ContactProfile({
           .limit(1)
           .maybeSingle(),
       ]);
+      // analytics_events has no join to flows: look the names up separately.
+      const rows = (ev.data ?? []) as unknown as Array<{ created_at: string; flow_id: string | null }>;
+      const ids = [...new Set(rows.map((r) => r.flow_id).filter(Boolean))] as string[];
+      const names = new Map<string, string>();
+      if (ids.length) {
+        const { data: fl } = await supabase.from("flows").select("id, name").in("id", ids);
+        for (const f of (fl ?? []) as Array<{ id: string; name: string }>) names.set(f.id, f.name);
+      }
       const seen = new Set<string>();
       const flows: Array<{ name: string; at: string }> = [];
-      for (const r of (ev.data ?? []) as Array<{ created_at: string; flows: { name: string } | null }>) {
-        const n = r.flows?.name;
+      for (const r of rows) {
+        const n = r.flow_id ? names.get(r.flow_id) : undefined;
         if (n && !seen.has(n)) {
           seen.add(n);
           flows.push({ name: n, at: r.created_at });
         }
       }
-      const c = conv.data as { id: string; channel_id: string; is_automation_paused: boolean } | null;
+      const c = conv.data as unknown as { id: string; channel_id: string; is_automation_paused: boolean } | null;
       setExtra({
-        sequences: ((enr.data ?? []) as Array<{ sequences: { name: string } | null }>).map((e) => e.sequences?.name ?? "").filter(Boolean),
+        sequences: ((enr.data ?? []) as unknown as Array<{ sequences: { name: string } | null }>).map((e) => e.sequences?.name ?? "").filter(Boolean),
         flows,
         conversationId: c?.id ?? null,
         channelId: c?.channel_id ?? null,
@@ -444,7 +452,8 @@ function ContactProfile({
                   value=""
                   onChange={(e) => {
                     const id = e.target.value;
-                    if (id) run(() => enrollContact(id, contact.id, extra.channelId!));
+                    const channelId = extra?.channelId;
+                    if (id && channelId) run(() => enrollContact(id, contact.id, channelId));
                   }}
                   className="bg-transparent text-blue-600"
                 >
