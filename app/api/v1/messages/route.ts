@@ -160,12 +160,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "API key not configured" }, { status: 400 });
   }
 
+  // Meta rules for a person writing by hand (like ManyChat's Inbox): free within
+  // 24 h of the contact's last message; from 24 h to 7 days only with the
+  // HUMAN_AGENT tag; after 7 days Instagram does not allow it.
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("last_interaction_at")
+    .eq("id", conversation.contact_id)
+    .maybeSingle();
+  const lastAt = contact?.last_interaction_at ? new Date(contact.last_interaction_at).getTime() : NaN;
+  const ageMs = Number.isFinite(lastAt) ? Date.now() - lastAt : 0;
+  const DAY = 24 * 60 * 60 * 1000;
+  if (ageMs > 7 * DAY) {
+    return NextResponse.json(
+      {
+        error:
+          "Pasaron más de 7 días desde el último mensaje de esta persona. Instagram no deja escribirle hasta que vuelva a escribirte.",
+      },
+      { status: 400 }
+    );
+  }
+  const humanAgent = ageMs > DAY;
+
   // Send via Zernio SDK — Zernio stores the message, no local insert needed
   try {
     const zernio = createZernioClient(workspace.late_api_key_encrypted);
     const res = await zernio.messages.sendInboxMessage({
       path: { conversationId: conversation.late_conversation_id },
-      body: { accountId: channel.late_account_id, message: text },
+      body: {
+        accountId: channel.late_account_id,
+        message: text,
+        ...(humanAgent ? { messagingType: "MESSAGE_TAG", messageTag: "HUMAN_AGENT" } : {}),
+      } as Parameters<typeof zernio.messages.sendInboxMessage>[0]["body"],
     });
 
     const messageId = (res.data as any)?.data?.messageId ?? null;

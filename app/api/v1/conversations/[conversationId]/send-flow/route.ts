@@ -39,6 +39,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Publica la automatización antes de enviarla" }, { status: 400 });
   }
 
+  // Meta: automations only within 24 h of the contact's last message (ManyChat
+  // blocks them too). After that you can still write by hand for up to 7 days.
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("last_interaction_at")
+    .eq("id", conversation.contact_id)
+    .maybeSingle();
+  const lastAt = contact?.last_interaction_at ? new Date(contact.last_interaction_at).getTime() : NaN;
+  if (Number.isFinite(lastAt) && Date.now() - lastAt > 24 * 60 * 60 * 1000) {
+    return NextResponse.json(
+      {
+        error:
+          "Pasaron más de 24 h desde su último mensaje: Instagram no permite automatizaciones. Escríbele a mano (hasta 7 días).",
+      },
+      { status: 400 }
+    );
+  }
+
   const service = await createServiceClient();
 
   // Like ManyChat, sending a new automation replaces any question still waiting for an answer.

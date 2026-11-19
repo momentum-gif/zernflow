@@ -256,6 +256,10 @@ export async function resumeSession(
   if (context.incomingMessage.text) {
     context.variables.message = context.incomingMessage.text;
   }
+  // The contact answered by DM: the comment's private-reply stage is over.
+  if (context.incomingMessage.text || context.incomingMessage.quickReplyPayload || context.incomingMessage.postbackPayload) {
+    context.variables.__dm_replied = "1";
+  }
 
   // Update session
   await supabase
@@ -515,9 +519,26 @@ async function executeNode(
   }
   switch (kind) {
     case "sendMessage": {
-      const res = await executeSendMessage(supabase, node.data as SendMessageNodeData, context);
       const q = (node.data as unknown as { question?: MessageQuestion }).question;
-      if (q && q.text?.trim()) return askMessageQuestion(supabase, q, node.id, context, sessionId);
+      const hasQuestion = !!(q && q.text?.trim());
+      const gate = await messagingGate(supabase, context);
+      if (gate === "private_reply_used" || gate === "window_closed") {
+        // Meta: one private reply per comment until the person answers, and
+        // automated messages only within 24 h of their last message. Like
+        // ManyChat, stop here instead of sending something Instagram rejects.
+        console.warn(`[meta-rules] ${gate}: run ${sessionId} stops at node ${node.id}`);
+        await completeSession(supabase, sessionId);
+        return "pause";
+      }
+      if (gate === "private_reply") {
+        // The whole step (all its texts + the question) goes out as ONE message.
+        await sendPrivateReplyStep(supabase, node.data as SendMessageNodeData, hasQuestion ? q! : undefined, context);
+        if (hasQuestion) return askMessageQuestion(supabase, q!, node.id, context, sessionId, true);
+        await supabase.from("flow_sessions").update({ variables: context.variables as Json }).eq("id", sessionId);
+        return;
+      }
+      const res = await executeSendMessage(supabase, node.data as SendMessageNodeData, context);
+      if (hasQuestion) return askMessageQuestion(supabase, q!, node.id, context, sessionId);
       return res;
     }
     case "condition":
@@ -738,6 +759,10 @@ async function executeSendMessage(
     }
     const adapted = adaptMessage(msg, context.platform!);
     const text = interpolateVariables(adapted.text, context.variables || {});
+    {
+      const raw = msg as { mediaUrl?: string; imageUrl?: string; carousel?: unknown };
+      if (!text.trim() && !raw.mediaUrl && !raw.imageUrl && !raw.carousel) continue; // empty block
+    }
 
     try {
       // Media (image/video/audio) is platform-agnostic, so read it from the raw
@@ -1652,15 +1677,12 @@ async function askMessageQuestion(
   q: MessageQuestion,
   nodeId: string,
   context: FlowExecutionContext,
-  sessionId: string
+  sessionId: string,
+  alreadySent = false
 ): Promise<"pause"> {
-  const options = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
-  const message: Record<string, unknown> = { text: q.text };
-  // "Respuestas inmediatas" go out as quick replies with any answer type.
-  if (options.length > 0) {
-    message.quickReplies = options.slice(0, 13).map((o) => ({ title: o.slice(0, 20), payload: `ci:${o}` }));
+  if (!alreadySent) {
+    await executeSendMessage(supabase, { messages: [questionMessage(q)] } as unknown as SendMessageNodeData, context);
   }
-  await executeSendMessage(supabase, { messages: [message] } as unknown as SendMessageNodeData, context);
 
   context.variables ??= {};
   delete context.variables.__ci_retries;
@@ -1835,4 +1857,82 @@ async function executeAiStep(
     .update({ waiting_for_input: true, current_node_id: nodeId, variables: context.variables as Json })
     .eq("id", sessionId);
   return "pause";
+}
+
+
+function questionMessage(q: MessageQuestion): Record<string, unknown> {
+  const options = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
+  const message: Record<string, unknown> = { text: q.text };
+  // "Respuestas inmediatas" go out as quick replies with any answer type.
+  if (options.length > 0) {
+    message.quickReplies = options.slice(0, 13).map((o) => ({ title: o.slice(0, 20), payload: `ci:${o}` }));
+  }
+  return message;
+}
+
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Meta's messaging rules for automated messages on Instagram:
+ * - "private_reply": the person only commented; one private reply is allowed.
+ * - "private_reply_used": that single reply was already sent and they have not answered.
+ * - "window_closed": more than 24 h since their last message (automations not allowed).
+ * - "open": normal DM inside the 24-hour window.
+ */
+async function messagingGate(
+  supabase: SupabaseClient<Database>,
+  context: FlowExecutionContext
+): Promise<"private_reply" | "private_reply_used" | "window_closed" | "open"> {
+  if (context.platform && context.platform !== "instagram") return "open";
+  // A run started by a comment stays in the private-reply stage until the person
+  // answers by DM (a comment does not open the 24-hour window).
+  if (context.variables?.comment_id && context.variables?.post_id && !context.variables.__dm_replied) {
+    return context.variables.__pr_sent ? "private_reply_used" : "private_reply";
+  }
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("last_interaction_at")
+    .eq("id", context.contactId)
+    .maybeSingle();
+  const last = contact?.last_interaction_at ? new Date(contact.last_interaction_at).getTime() : NaN;
+  if (Number.isFinite(last) && Date.now() - last > WINDOW_MS) return "window_closed";
+  return "open";
+}
+
+/** One private reply that carries the whole step: its texts and, last, the question. */
+async function sendPrivateReplyStep(
+  supabase: SupabaseClient<Database>,
+  data: SendMessageNodeData,
+  q: MessageQuestion | undefined,
+  context: FlowExecutionContext
+) {
+  const texts = (data.messages ?? [])
+    .map((m) => String((m as { text?: string }).text ?? "").trim())
+    .filter(Boolean);
+  const firstWithButtons = (data.messages ?? []).find((m) => (m as { buttons?: unknown[] }).buttons?.length);
+  const merged: Record<string, unknown> = q ? questionMessage(q) : { ...(firstWithButtons ?? {}) };
+  merged.text = [...texts, ...(q ? [q.text.trim()] : [])].join("\n\n");
+  if (!String(merged.text).trim()) return;
+  context.variables ??= {};
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("late_api_key_encrypted")
+    .eq("id", context.workspaceId)
+    .single();
+  if (!workspace?.late_api_key_encrypted) return;
+  let lateAccountId = context.lateAccountId;
+  if (!lateAccountId) {
+    const { data: channel } = await supabase.from("channels").select("late_account_id").eq("id", context.channelId).single();
+    lateAccountId = channel?.late_account_id ?? undefined;
+  }
+  if (!lateAccountId) return;
+  const zernio = createZernioClient(workspace.late_api_key_encrypted);
+  await sendFirstMessageAsPrivateReply(
+    supabase,
+    zernio,
+    { messages: [merged] } as unknown as SendMessageNodeData,
+    context,
+    lateAccountId
+  );
+  context.variables.__pr_sent = "1";
 }

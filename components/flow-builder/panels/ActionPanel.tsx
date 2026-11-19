@@ -601,6 +601,12 @@ function SmartDelayConfig({ data, onChange, nodeId }: ActionSubPanelProps & { no
               </select>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">Ingresa un número para el tiempo de espera. Máximo 365 días.</p>
+            {(d.duration ?? 1) * ({ seconds: 1, minutes: 60, hours: 3600, days: 86400 }[d.unit ?? "hours"] ?? 3600) >= 86400 && (
+              <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                Instagram solo permite mensajes automáticos dentro de las 24 h desde el último mensaje de la persona. Si
+                después de esta pausa no te escribió, lo que sigue no se enviará.
+              </p>
+            )}
           </div>
 
           <div>

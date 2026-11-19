@@ -93,6 +93,20 @@ interface QuestionData {
   retries?: number;
 }
 
+/** True when this step is the reply to a comment (connected straight from a comment trigger). */
+function useIsCommentReply(nodeId?: string) {
+  const nodes = useStore((st) => st.nodes);
+  const edges = useStore((st) => st.edges) as Edge[];
+  if (!nodeId) return false;
+  return edges.some((e) => {
+    if (e.target !== nodeId) return false;
+    const src = nodes.find((n) => n.id === e.source);
+    if (src?.type !== "trigger") return false;
+    const d = src.data as { triggerType?: string; triggers?: Array<{ triggerType?: string }> };
+    return d.triggerType === "comment_keyword" || !!d.triggers?.some((t) => t.triggerType === "comment_keyword");
+  });
+}
+
 const NEW_QUESTION: QuestionData = { text: "", inputType: "text", expireValue: 30, expireUnit: "minutes", retries: 3 };
 
 interface SendMessagePanelData {
@@ -158,8 +172,16 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
     [data, messages, onChange]
   );
 
+  const isCommentReply = useIsCommentReply(nodeId);
+
   return (
     <div className="space-y-4">
+      {isCommentReply && (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          Este paso responde a un comentario. Instagram solo permite <b>un mensaje</b> hasta que la persona conteste, así
+          que todo lo de este paso se envía junto en un solo mensaje. Termínalo con una pregunta para que te responda.
+        </p>
+      )}
       {messages.map((message, msgIndex) => (
         <MessageEditor
           key={msgIndex}
@@ -167,7 +189,7 @@ export function SendMessagePanel({ data: rawData, onChange, availableVariables, 
           message={message}
           onChange={(updated) => updateMessage(msgIndex, updated)}
           onRemove={() => removeMessage(msgIndex)}
-          canRemove={messages.length > 1}
+          canRemove={messages.length > 1 || !!data.question}
           availableVariables={availableVariables}
           nodeId={nodeId}
         />
@@ -1094,6 +1116,7 @@ function QuestionBlock({
   onRemove: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const isCommentReply = useIsCommentReply(nodeId);
   const { setEdges } = useReactFlow();
   const edges = useStore((st) => st.edges) as Edge[];
   const createStep = useCreateConnectedStep(nodeId ?? "");
@@ -1244,6 +1267,23 @@ function QuestionBlock({
                 <option value="days">Días</option>
               </select>
             </div>
+            {(() => {
+              const ms =
+                (question.expireValue ?? 30) *
+                ({ seconds: 1e3, minutes: 6e4, hours: 36e5, days: 864e5 }[question.expireUnit ?? "minutes"] ?? 6e4);
+              return ms >= 864e5 ? (
+                <p className="rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                  Instagram solo permite mensajes automáticos dentro de las 24 h desde el último mensaje de la persona. Con
+                  24 h o más, el seguimiento no se enviará.
+                </p>
+              ) : null;
+            })()}
+            {isCommentReply && (
+              <p className="rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                Esta pregunta responde a un comentario: si la persona no contesta, Instagram no deja enviarle nada más, así
+                que este seguimiento no saldrá. Úsalo en los pasos siguientes, cuando ya te haya respondido.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               Puedes iniciar otra automatización una vez que haya caducado sin una respuesta:
             </p>
