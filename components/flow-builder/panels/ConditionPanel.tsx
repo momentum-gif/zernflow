@@ -80,19 +80,27 @@ export function ConditionPanel({ data, onChange }: ConditionPanelProps) {
   const [picking, setPicking] = useState(conditions.length === 0);
   const [group, setGroup] = useState(0);
   const [sequences, setSequences] = useState<Array<{ id: string; name: string }>>([]);
+  const [fields, setFields] = useState<Array<{ slug: string; name: string }>>([]);
 
   useEffect(() => {
     import("@/lib/supabase/client").then(async ({ createClient }) => {
-      const { data: rows } = await createClient().from("sequences").select("id, name").order("name");
+      const supabase = createClient();
+      const [{ data: rows }, { data: defs }] = await Promise.all([
+        supabase.from("sequences").select("id, name").order("name"),
+        supabase.from("custom_field_definitions").select("slug, name").order("name"),
+      ]);
       setSequences(rows ?? []);
+      setFields((defs as Array<{ slug: string; name: string }>) ?? []);
     });
   }, []);
 
   const set = (next: Condition[]) => onChange({ ...data, conditions: next });
   const update = (i: number, patch: Partial<Condition>) => set(conditions.map((c, j) => (j === i ? { ...c, ...patch } : c)));
 
-  function add(field: string) {
-    const base: Condition =
+  function add(field: string, fieldSlug?: string) {
+    const base: Condition = fieldSlug
+      ? { field: "custom_field", fieldSlug, operator: "equals", value: "" }
+      :
       field === "tag" || field === "sequence"
         ? { field, operator: "has", value: "" }
         : field === "current_time"
@@ -125,7 +133,11 @@ export function ConditionPanel({ data, onChange }: ConditionPanelProps) {
           )}
           <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900 dark:bg-sky-950/20">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-semibold text-foreground">{FIELD_LABEL[c.field] ?? c.field}</span>
+              <span className="text-sm font-semibold text-foreground">
+                {c.field === "custom_field" && c.fieldSlug
+                  ? fields.find((f) => f.slug === c.fieldSlug)?.name ?? c.fieldSlug
+                  : FIELD_LABEL[c.field] ?? c.field}
+              </span>
               <button type="button" onClick={() => set(conditions.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-500">
                 <X className="h-4 w-4" />
               </button>
@@ -164,11 +176,21 @@ export function ConditionPanel({ data, onChange }: ConditionPanelProps) {
 
             {!["tag", "sequence", "current_time"].includes(c.field) && (
               <div className="space-y-2">
-                {(c.field === "custom_field" || c.field === "variable") && (
+                {c.field === "custom_field" && !c.fieldSlug && (
+                  <select value="" onChange={(e) => update(i, { fieldSlug: e.target.value })} className={inputClass}>
+                    <option value="">Elegir campo…</option>
+                    {fields.map((f) => (
+                      <option key={f.slug} value={f.slug}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {c.field === "variable" && (
                   <input
                     value={c.fieldSlug ?? ""}
                     onChange={(e) => update(i, { fieldSlug: e.target.value })}
-                    placeholder={c.field === "variable" ? "Nombre de la variable (ej: email)" : "Campo (slug)"}
+                    placeholder="Nombre de la variable (ej: email)"
                     className={inputClass}
                   />
                 )}
@@ -204,11 +226,30 @@ export function ConditionPanel({ data, onChange }: ConditionPanelProps) {
               ))}
             </div>
             <div className="flex-1 p-1">
-              {GROUPS[group].fields.map((f) => (
-                <button key={f.id} type="button" onClick={() => add(f.id)} className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted">
-                  {f.label}
-                </button>
-              ))}
+              {group === GROUPS.length - 1 ? (
+                <>
+                  {fields.map((f) => (
+                    <button
+                      key={f.slug}
+                      type="button"
+                      onClick={() => add("custom_field", f.slug)}
+                      className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                    >
+                      {f.name}
+                    </button>
+                  ))}
+                  {fields.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">Todavía no tienes campos</p>}
+                  <button type="button" onClick={() => add("variable")} className="w-full rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-muted">
+                    Variable…
+                  </button>
+                </>
+              ) : (
+                GROUPS[group].fields.map((f) => (
+                  <button key={f.id} type="button" onClick={() => add(f.id)} className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted">
+                    {f.label}
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>
