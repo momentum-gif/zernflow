@@ -81,6 +81,11 @@ ${tasks || "(sin tareas)"}
 CONTEXTO DEL NEGOCIO:
 ${data.context || "(sin contexto)"}
 
+REGLAS:
+- No vuelvas a preguntar algo que el contacto ya respondió en la conversación.
+- Si ya tienes todo lo necesario para completar las tareas, devuelve "reply" vacío y "done": true (no escribas nada más).
+- Si la respuesta no alcanza para decidir, haz UNA pregunta corta en el mismo estilo que el contexto.
+
 Cada vez responde SOLO con JSON:
 {"reply": "el próximo mensaje para el contacto (vacío si no hace falta decir nada más)", "fields": {"campo": "valor"} con los datos ya obtenidos para los campos indicados, "done": true cuando todas las tareas estén completas}`;
 }

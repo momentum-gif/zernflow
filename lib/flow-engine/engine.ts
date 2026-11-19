@@ -1664,6 +1664,8 @@ async function askMessageQuestion(
 
   context.variables ??= {};
   delete context.variables.__ci_retries;
+  // An AI Step right after this question reads the question and the answer.
+  context.variables.__last_question = q.text;
   const ms = Number(q.expireValue ?? 0) * (UNIT_MS[q.expireUnit ?? "minutes"] ?? 60_000);
   let expiresAt: string | null = null;
   if (ms > 0) {
@@ -1767,7 +1769,15 @@ async function executeAiStep(
       history = [];
     }
   }
-  if (userText?.trim()) history.push({ role: "user", content: userText.trim() });
+  if (userText?.trim()) {
+    history.push({ role: "user", content: userText.trim() });
+  } else if (!history.length && context.variables.__last_question && context.incomingMessage?.text?.trim()) {
+    // Like ManyChat + Claude: the AI reads the answer the contact just gave to
+    // the previous question instead of asking again.
+    history.push({ role: "assistant", content: context.variables.__last_question });
+    history.push({ role: "user", content: context.incomingMessage.text.trim() });
+  }
+  delete context.variables.__last_question;
 
   const finish = async () => {
     delete context.variables!.__ai_history;
