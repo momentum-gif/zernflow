@@ -81,10 +81,11 @@ ${tasks || "(sin tareas)"}
 CONTEXTO DEL NEGOCIO:
 ${data.context || "(sin contexto)"}
 
-REGLAS:
-- No vuelvas a preguntar algo que el contacto ya respondió en la conversación.
-- Si ya tienes todo lo necesario para completar las tareas, devuelve "reply" vacío y "done": true (no escribas nada más).
-- Si la respuesta no alcanza para decidir, haz UNA pregunta corta en el mismo estilo que el contexto.
+REGLAS (en este orden):
+1. Primero revisa TODO lo que el contacto ya dijo en la conversación.
+2. Si con eso ya puedes completar todas las tareas siguiendo el contexto, NO preguntes nada: devuelve "reply": "" y "done": true, con los "fields" completos.
+3. Solo si de verdad falta algo, haz UNA pregunta corta, en el mismo estilo que el contexto. Nunca preguntes algo que ya respondió.
+4. Respeta al pie de la letra las reglas de estilo y de cantidad de preguntas del contexto.
 
 Cada vez responde SOLO con JSON:
 {"reply": "el próximo mensaje para el contacto (vacío si no hace falta decir nada más)", "fields": {"campo": "valor"} con los datos ya obtenidos para los campos indicados, "done": true cuando todas las tareas estén completas}`;
@@ -95,16 +96,29 @@ export async function runAiStepTurn(apiKey: string | null, data: AiStepData, his
   const gw = gateway(apiKey);
   const { text } = await generateText({
     model: gw(data.model || DEFAULT_AI_MODEL),
-    temperature: 0.5,
+    temperature: 0.2,
     maxOutputTokens: 500,
     system: systemPrompt(data),
     messages: history.length ? history : [{ role: "user", content: "(El contacto acaba de llegar a este paso. Empieza.)" }],
   });
   const parsed = parseJson<{ reply?: string; fields?: Record<string, unknown>; done?: boolean }>(text);
-  if (!parsed) return { reply: text.trim(), fields: {}, done: false };
+  if (!parsed) return { reply: applyStyle(text.trim(), data), fields: {}, done: false };
   const fields: Record<string, string> = {};
   for (const [k, v] of Object.entries(parsed.fields ?? {})) {
     if (v !== null && v !== undefined && String(v).trim()) fields[k] = String(v).trim();
   }
-  return { reply: String(parsed.reply ?? "").trim(), fields, done: !!parsed.done };
+  return { reply: applyStyle(String(parsed.reply ?? "").trim(), data), fields, done: !!parsed.done };
+}
+
+
+/** Style rules the model sometimes forgets, enforced when the context asks for them. */
+function applyStyle(reply: string, data: AiStepData): string {
+  const ctx = (data.context ?? "").toLowerCase();
+  let out = reply;
+  if (ctx.includes("signos de apertura")) out = out.replace(/[¿¡]/g, "");
+  if (ctx.includes("minúscula") || ctx.includes("minuscula")) {
+    // lowercase the first letter of each sentence (keeps names inside sentences)
+    out = out.replace(/(^|[.!?]\s+)([A-ZÁÉÍÓÚÑ])/g, (_m, p: string, c: string) => p + c.toLowerCase());
+  }
+  return out;
 }

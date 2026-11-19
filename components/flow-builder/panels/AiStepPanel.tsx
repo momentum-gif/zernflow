@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useStore, type Edge, type Node } from "@xyflow/react";
 import { Sparkles, Loader2, Plus, GripVertical, X, Search, Mail, Send, HelpCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -120,7 +121,14 @@ function FieldPicker({ value, onChange }: { value?: string; onChange: (slug: str
 }
 
 /** "Chatea con AI Step aquí para ver cómo gestiona las conversaciones reales". */
-function AiChatPreview({ data, anchor }: { data: StepData; anchor: HTMLElement | null }) {
+function AiChatPreview({ data, anchor, nodeId }: { data: StepData; anchor: HTMLElement | null; nodeId: string }) {
+  // The question of the step right before this one (what the contact is answering).
+  const prevQuestion = useStore((st) => {
+    const edge = (st.edges as Edge[]).find((e) => e.target === nodeId);
+    const src = edge && (st.nodes as Node[]).find((n) => n.id === edge.source);
+    const q = (src?.data as { question?: { text?: string } } | undefined)?.question?.text;
+    return q?.trim() || "";
+  });
   const [pos, setPos] = useState<{ left: number; top: number; height: number } | null>(null);
   const [started, setStarted] = useState(false);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
@@ -179,10 +187,15 @@ function AiChatPreview({ data, anchor }: { data: StepData; anchor: HTMLElement |
               type="button"
               onClick={() => {
                 setStarted(true);
-                setHistory([]);
                 setSaved({});
                 setDone(false);
-                turn([]);
+                if (prevQuestion) {
+                  // Same as the real conversation: the contact answers the previous question.
+                  setHistory([{ role: "assistant", content: prevQuestion }]);
+                } else {
+                  setHistory([]);
+                  turn([]);
+                }
               }}
               className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
             >
@@ -344,7 +357,7 @@ export function AiStepPanel({
 
   return (
     <div ref={anchor} className="space-y-5">
-      <AiChatPreview data={data} anchor={anchorEl} />
+      <AiChatPreview data={data} anchor={anchorEl} nodeId={nodeId} />
       <div>
         <p className="mb-2 text-base font-semibold">Objetivo</p>
         <textarea rows={3} value={data.goal ?? ""} onChange={(e) => set({ goal: e.target.value })} className={box} />
