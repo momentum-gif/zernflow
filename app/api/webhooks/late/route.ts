@@ -150,8 +150,18 @@ async function handleWebhook(request: NextRequest) {
 
   const { message: msg, account } = payload;
 
-  // Ignore outbound messages (sent by the bot itself) to prevent loops
-  if (msg.direction === "outbound") {
+  // Ignore messages sent by our own account (Zernio says "outgoing"; older
+  // payloads "outbound"): otherwise the bot's own question would count as the
+  // contact's answer and loops could start.
+  const dir = (msg.direction || "").toLowerCase();
+  const ownUser =
+    !!msg.sender?.username &&
+    !!account?.username &&
+    msg.sender.username.toLowerCase() === account.username.toLowerCase();
+  console.log(
+    `[webhook] message dir=${dir} sender=${msg.sender?.username ?? msg.sender?.id} account=${account?.username} text=${(msg.text ?? "").slice(0, 40)}`
+  );
+  if (dir === "outbound" || dir === "outgoing" || dir === "sent" || ownUser) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
@@ -329,6 +339,7 @@ async function processMessageEvent(
           .eq("id", waiting.id);
       } else if (waiting) {
         resumed = true;
+        console.log(`[webhook] resuming session ${waiting.id} at node ${waiting.current_node_id} with "${(msg.text ?? "").slice(0, 40)}"`);
         try {
           await resumeSession(supabase, waiting, {
             triggerId: "",

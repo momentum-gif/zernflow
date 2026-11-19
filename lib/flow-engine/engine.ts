@@ -1679,7 +1679,8 @@ async function askMessageQuestion(
 
   // "Si el contacto no ha respondido": the cron continues this branch when time runs out.
   if (expiresAt) {
-    await supabase.from("scheduled_jobs").insert({
+    console.log(`[question] session ${sessionId} waits until ${expiresAt} at node ${nodeId}`);
+    const { error: jobError } = await supabase.from("scheduled_jobs").insert({
       type: "input_timeout",
       payload: {
         sessionId,
@@ -1695,6 +1696,7 @@ async function askMessageQuestion(
       },
       run_at: expiresAt,
     });
+    if (jobError) console.error("[question] could not schedule the no-reply job:", jobError.message);
   }
   return "pause";
 }

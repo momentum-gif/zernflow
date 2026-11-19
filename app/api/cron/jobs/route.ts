@@ -513,8 +513,11 @@ async function processJob(
         .eq("id", payload.sessionId)
         .eq("status", "active")
         .maybeSingle();
+      const vars = (session?.variables ?? {}) as Record<string, unknown>;
+      console.log(
+        `[cron] input_timeout session=${payload.sessionId} found=${!!session} waiting=${session?.waiting_for_input} node=${session?.current_node_id}/${payload.nodeId} exp=${String(vars.__ci_expires_at)}/${payload.expiresAt}`
+      );
       if (!session || !session.waiting_for_input || session.current_node_id !== payload.nodeId) return;
-      const vars = (session.variables ?? {}) as Record<string, unknown>;
       if (vars.__ci_expires_at !== payload.expiresAt) return;
       await resumeNoReply(supabase, session, {
         triggerId: "",
