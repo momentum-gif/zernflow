@@ -53,7 +53,7 @@ export async function generateAiStep(apiKey: string | null, goal: string, contex
     temperature: 0.3,
     maxOutputTokens: 600,
     system:
-      "Eres un experto en automatizaciones de Instagram como ManyChat. Divide el objetivo en tareas cortas y concretas que un asistente de IA hará en una conversación por mensaje directo. Responde SOLO con JSON.",
+      "Eres un experto en automatizaciones de Instagram como ManyChat. Divide el objetivo en tareas cortas y concretas que un asistente de IA hará en una conversación por mensaje directo. Una tarea es un objetivo (qué averiguar o decidir), nunca una frase para enviar: los ejemplos de preguntas, respuestas o criterios del contexto NO son tareas, la IA los leerá del contexto. Usa las menos tareas posibles (normalmente 1 a 3). Responde SOLO con JSON.",
     prompt: `Objetivo: ${goal}\nContexto del negocio: ${context}\n\nDevuelve JSON así: {"goal": "objetivo resumido en una frase", "tasks": [{"text": "tarea en una frase, en español", "saveField": true si la tarea pide un dato al usuario que convenga guardar}]}. Entre 1 y 6 tareas.`,
   });
   const parsed = parseJson<{ goal?: string; tasks?: Array<{ text?: string; saveField?: boolean }> }>(text);
