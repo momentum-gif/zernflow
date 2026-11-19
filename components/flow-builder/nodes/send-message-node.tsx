@@ -100,7 +100,7 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
       </div>
 
       <div className="space-y-1.5 p-3">
-        {messages.length === 0 && (
+        {messages.length === 0 && !nodeData.question && (
           <div className="rounded-xl border border-dashed border-border px-3 py-3 text-center text-xs text-muted-foreground">
             Añadir texto
           </div>
