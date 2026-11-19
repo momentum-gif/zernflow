@@ -74,11 +74,20 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "w-64 rounded-2xl border bg-card shadow-sm transition-shadow",
+        "relative w-64 rounded-2xl border bg-card shadow-sm transition-shadow",
         selected ? "border-emerald-500 shadow-md" : "border-border",
       )}
     >
       <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-border !bg-white" />
+      {/* "Siguiente paso" connector. It must be the FIRST source handle in the DOM:
+          React Flow draws edges without a handle id from the first source handle,
+          so otherwise they appeared to leave from a button or "Acción en respuesta". */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ top: "auto", bottom: 17 }}
+        className="!-right-1.5 !h-3 !w-3 !translate-y-1/2 !border-2 !border-border !bg-white"
+      />
 
       <div className="flex items-center gap-2 px-3 pt-3">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-400 text-white">
@@ -185,11 +194,6 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
           {stats ? `Enviados ${step?.sent ?? 0}${choices.some((c) => c.handle) ? ` · CTR ${step?.ctr ?? 0}%` : ""}` : ""}
         </span>
         <span className="text-[10px] text-muted-foreground">Siguiente paso</span>
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="!-right-1.5 !h-3 !w-3 !border-2 !border-border !bg-white"
-        />
       </div>
     </div>
   );
