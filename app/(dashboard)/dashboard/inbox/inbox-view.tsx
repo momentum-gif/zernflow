@@ -195,7 +195,7 @@ export function InboxView({
     <div className="flex h-full flex-col">
       {/* Top bar */}
       <div className="flex h-14 shrink-0 items-center gap-4 border-b border-border px-5">
-        <h1 className="w-48 shrink-0 whitespace-nowrap text-lg font-semibold">Bandeja de entrada</h1>
+        <h1 className="w-52 shrink-0 whitespace-nowrap text-lg font-semibold">Bandeja de entrada</h1>
         <div className="relative mx-auto w-full max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -211,7 +211,7 @@ export function InboxView({
 
       <div className="flex min-h-0 flex-1">
         {/* Left sidebar: folders + tags */}
-        <div className="w-48 shrink-0 space-y-1 border-r border-border p-3 text-sm">
+        <div className="w-52 shrink-0 space-y-1 border-r border-border p-3 text-sm">
           <button
             onClick={() => setTagFolder(null)}
             className={cn(
@@ -219,7 +219,7 @@ export function InboxView({
               tagFolder === null && "bg-accent"
             )}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 whitespace-nowrap">
               <Inbox className="h-4 w-4" /> Todos los chats
             </span>
             <span className="text-xs text-muted-foreground">{conversations.length}</span>
@@ -234,7 +234,7 @@ export function InboxView({
               tagFolder === "__reminders" && "bg-accent"
             )}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 whitespace-nowrap">
               <Clock className="h-4 w-4" /> Recordatorios
             </span>
             <span className="text-xs text-muted-foreground">
