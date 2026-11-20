@@ -60,11 +60,13 @@ export function TriggerNode({ id, data, selected }: NodeProps) {
     }
   }
   const triggerType = nodeData.triggerType || "keyword";
-  const title = triggerLabels[triggerType] || "Disparador";
+  const empty = triggerType === "none";
+  const title = empty ? "Agrega un disparador" : triggerLabels[triggerType] || "Disparador";
   const d = data as Record<string, unknown>;
   const kw = nodeData.keywords ?? [];
-  const detail =
-    triggerType === "comment_keyword" || triggerType === "story_reply"
+  const detail = empty
+    ? "Un disparador es un evento que inicia tu automatización. Haz clic para agregar un disparador."
+    : triggerType === "comment_keyword" || triggerType === "story_reply"
       ? d.anyComment === true
         ? "Cualquier comentario"
         : kw.length
@@ -95,12 +97,12 @@ export function TriggerNode({ id, data, selected }: NodeProps) {
           {nodeData.label && <p className="mt-0.5 text-[11px] text-muted-foreground">{nodeData.label}</p>}
           {detail && <p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p>}
         </div>
-        <button
+        {!empty && <button
           onClick={addTrigger}
           className="nodrag mt-2 w-full rounded-xl border border-dashed border-border py-2 text-xs font-medium text-blue-600 hover:border-blue-400"
         >
           + Nuevo disparador
-        </button>
+        </button>}
       </div>
       <div className="relative flex items-center justify-end border-t border-border px-3 py-2">
         <span className="text-[10px] text-muted-foreground">Entonces</span>

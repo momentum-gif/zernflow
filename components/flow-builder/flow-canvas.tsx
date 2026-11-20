@@ -87,6 +87,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   // Like ManyChat, a published automation opens on its metrics; "Editar" switches to the editor.
   const [viewMode, setViewMode] = useState(false);
+  const [metricsOpen, setMetricsOpen] = useState(true);
   const [versionPanelOpen, setVersionPanelOpen] = useState(false);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -626,9 +627,9 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
               isMessage={selectedNode.type === "sendMessage"}
               onClose={closeSidebar}
             />
-          ) : (
+          ) : metricsOpen ? (
             <KeyMetricsPanel flowId={flow.id} />
-          ))}
+          ) : null)}
         {!viewMode && selectedNode && !versionPanelOpen && (
           <NodeConfigSidebar
             node={selectedNode}
@@ -641,6 +642,16 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           />
         )}
         <div ref={reactFlowWrapper} className="relative flex-1">
+          {viewMode && !selectedNode && !versionPanelOpen && (
+            <button
+              onClick={() => setMetricsOpen((o) => !o)}
+              title={metricsOpen ? "Ocultar métricas" : "Mostrar métricas"}
+              aria-label={metricsOpen ? "Ocultar métricas" : "Mostrar métricas"}
+              className="absolute left-2 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm hover:text-foreground"
+            >
+              {metricsOpen ? "‹" : "›"}
+            </button>
+          )}
           {viewMode && (
             <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-1.5 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100">
               Está viendo una versión publicada

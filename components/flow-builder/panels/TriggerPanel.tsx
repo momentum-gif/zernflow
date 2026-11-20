@@ -45,7 +45,8 @@ export function TriggerPanel({
   const keywords = data.keywords || [];
   const [newKeyword, setNewKeyword] = useState("");
   const [newMatchType, setNewMatchType] = useState<"exact" | "contains" | "startsWith">("contains");
-  const [pickerOpen, setPickerOpen] = useState(false);
+  // An empty "Cuando..." block opens the trigger list right away, like ManyChat.
+  const [pickerOpen, setPickerOpen] = useState(triggerType === "none");
   const currentOption = findTriggerOption(triggerType);
 
   const handleTriggerTypeChange = useCallback(
@@ -95,10 +96,10 @@ export function TriggerPanel({
           <span className="min-w-0">
             <span className="block text-xs text-muted-foreground">{currentOption?.category ?? "Disparador"}</span>
             <span className="block text-sm font-medium text-foreground">
-              {currentOption?.title ?? triggerType}
+              {triggerType === "none" ? "Agrega un disparador" : currentOption?.title ?? triggerType}
             </span>
           </span>
-          <span className="shrink-0 text-xs font-medium text-emerald-600">Cambiar</span>
+          <span className="shrink-0 text-xs font-medium text-emerald-600">{triggerType === "none" ? "Elegir" : "Cambiar"}</span>
         </button>
         <TriggerPickerModal
           open={pickerOpen}

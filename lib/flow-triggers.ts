@@ -121,7 +121,8 @@ function nodeTriggers(
   flowId: string,
 ): DesiredTrigger[] {
   return flowNodes
-    .filter((n) => n?.type === "trigger")
+    // An empty "Cuando..." block (no trigger chosen yet) starts nothing.
+    .filter((n) => n?.type === "trigger" && ((n.data ?? {}) as Record<string, unknown>).triggerType !== "none")
     .flatMap((n) => {
       const data = (n.data ?? {}) as Record<string, any>;
       const nodeConfig = (data.config ?? {}) as Record<string, any>;

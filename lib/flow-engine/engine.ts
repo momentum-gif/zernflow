@@ -180,13 +180,12 @@ export async function executeFlow(
     }
   }
   const triggerNodes = nodes.filter((n) => n.type === "trigger"); const trigField = (n: FlowNode, k: "triggerType" | "payload") => (n.data as unknown as Record<string, string | undefined>)?.[k]; const inc = context.incomingMessage; const triggerNode = (firedNodeId ? triggerNodes.find((n) => n.id === firedNodeId) : undefined) ?? (inc.postbackPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "postback" && trigField(n, "payload") === inc.postbackPayload) : undefined) ?? (inc.quickReplyPayload ? triggerNodes.find((n) => trigField(n, "triggerType") === "quick_reply" && trigField(n, "payload") === inc.quickReplyPayload) : undefined) ?? (inc.text ? triggerNodes.find((n) => trigField(n, "triggerType") === "keyword" && (((n.data as unknown as { keywords?: Array<string | { value: string; matchType?: string }> }).keywords) ?? []).some((kw) => { const v = (typeof kw === "string" ? kw : kw.value).toLowerCase(); const m = typeof kw === "string" ? "contains" : (kw.matchType ?? "contains"); const t = inc.text!.toLowerCase().trim(); return m === "exact" ? t === v : m === "startsWith" ? t.startsWith(v) : t.includes(v); })) : undefined) ?? triggerNodes.find((n) => !["postback", "quick_reply"].includes(trigField(n, "triggerType") ?? "keyword")) ?? triggerNodes[0];
-  if (!triggerNode) return;
-
-  // Get the first connected node
-  const firstEdge = edges.find((e) => e.source === triggerNode.id);
-  if (!firstEdge) return;
-
-  const startNode = nodes.find((n) => n.id === firstEdge.target);
+  // Sent by hand from the Inbox: run from the first step, with or without a
+  // "Cuando..." block (manual-only automations have none).
+  let startNode: FlowNode | undefined;
+  const firstEdge = triggerNode ? edges.find((e) => e.source === triggerNode.id) : undefined;
+  if (firstEdge) startNode = nodes.find((n) => n.id === firstEdge.target);
+  if (!startNode && context.triggerId === "manual") startNode = firstStep(nodes, edges);
   if (!startNode) return;
 
   await traverseNodes(supabase, session.id, startNode, nodes, edges, context, 0);
@@ -2007,4 +2006,13 @@ export function realName(name: string | null | undefined, username?: string | nu
   const u = username?.trim().replace(/^@/, "").toLowerCase();
   if (u && n.replace(/^@/, "").toLowerCase() === u) return null;
   return n;
+}
+
+/** The first step of an automation with no trigger: a step nothing points to, top-left first. */
+function firstStep(nodes: FlowNode[], edges: FlowEdge[]): FlowNode | undefined {
+  const targets = new Set(edges.map((e) => e.target));
+  const roots = nodes.filter((n) => n.type !== "trigger" && n.type !== "note" && !targets.has(n.id));
+  const pool = roots.length ? roots : nodes.filter((n) => n.type !== "trigger" && n.type !== "note");
+  const pos = (n: FlowNode) => (n as unknown as { position?: { x?: number; y?: number } }).position ?? {};
+  return [...pool].sort((a, b) => (pos(a).x ?? 0) - (pos(b).x ?? 0) || (pos(a).y ?? 0) - (pos(b).y ?? 0))[0];
 }

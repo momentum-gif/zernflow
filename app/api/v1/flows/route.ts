@@ -52,7 +52,11 @@ export async function POST(request: NextRequest) {
       workspace_id: membership.workspace_id,
       name: body.name || "Untitled Flow",
       description: body.description || null,
-      nodes: body.nodes || [],
+      // Like ManyChat, a new automation starts with an empty "Cuando..." block.
+      nodes:
+        Array.isArray(body.nodes) && body.nodes.length
+          ? body.nodes
+          : [{ id: `trigger_${Date.now()}`, type: "trigger", position: { x: 0, y: 0 }, data: { triggerType: "none" } }],
       edges: body.edges || [],
     })
     .select("id, name, status")
