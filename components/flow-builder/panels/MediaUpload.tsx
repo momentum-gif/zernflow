@@ -13,7 +13,7 @@ const SPEC: Record<Kind, { word: string; accept: string; formats: string; maxMb:
   file: { word: "PDF", accept: "application/pdf", formats: "pdf - 25 MB max", maxMb: 25, Icon: FileText },
 };
 
-async function uploadFile(file: File): Promise<string> {
+export async function uploadFile(file: File): Promise<string> {
   const type = file.type || "application/octet-stream";
   // Direct upload to storage (no size limit from our server)…
   try {

@@ -54,6 +54,27 @@ export async function GET(request: NextRequest) {
     console.error("[cron] date triggers failed:", err);
   }
 
+  // "Recuérdamelo en": when a reminder is due the chat goes back to Open chats,
+  // like ManyChat. Ignored until migration 00020 adds remind_at.
+  try {
+    const now = new Date().toISOString();
+    const { data: due } = await supabase
+      .from("conversations")
+      .select("id, workspace_id")
+      .lte("remind_at" as never, now)
+      .limit(500);
+    for (const c of (due ?? []) as Array<{ id: string; workspace_id: string }>) {
+      await supabase.from("conversations").update({ status: "open", remind_at: null } as never).eq("id", c.id);
+      await supabase.from("inbox_events" as never).insert({
+        workspace_id: c.workspace_id,
+        conversation_id: c.id,
+        text: "Recordatorio: la conversación volvió a Abrir chats",
+      } as never);
+    }
+  } catch (err) {
+    console.error("[cron] inbox reminders failed:", err);
+  }
+
   // Prune the webhook idempotency ledger; ids only matter for Zernio's retry
   // window (hours), so anything older than 48h is dead weight.
   await supabase

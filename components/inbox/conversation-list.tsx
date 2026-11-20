@@ -94,7 +94,9 @@ export function ConversationList({
       if (unreadOnly && !(c.unread_count > 0)) return false;
       if (channel !== "all" && c.platform !== channel) return false;
       const tagIds = new Set((c.contacts?.contact_tags ?? []).map((t) => t.tag_id));
-      if (tagFolder && !tagIds.has(tagFolder)) return false;
+      if (tagFolder === "__reminders") {
+        if (!(c as { remind_at?: string | null }).remind_at) return false;
+      } else if (tagFolder && !tagIds.has(tagFolder)) return false;
       for (const cond of conditions) {
         if (cond.op === "is" && !tagIds.has(cond.tagId)) return false;
         if (cond.op === "is_not" && tagIds.has(cond.tagId)) return false;

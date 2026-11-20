@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, RefreshCw, Search, Inbox, Plus, ChevronDown, ArrowUpDown, X, Tag as TagIcon } from "lucide-react";
+import { MessageSquare, RefreshCw, Search, Inbox, Plus, ChevronDown, ArrowUpDown, X, Tag as TagIcon, Clock } from "lucide-react";
 import { ConversationList, type InboxConversation } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactPanel } from "@/components/inbox/contact-panel";
@@ -223,6 +223,23 @@ export function InboxView({
               <Inbox className="h-4 w-4" /> Todos los chats
             </span>
             <span className="text-xs text-muted-foreground">{conversations.length}</span>
+          </button>
+          <button
+            onClick={() => {
+              setTagFolder("__reminders");
+              setStatus("all");
+            }}
+            className={cn(
+              "flex w-full items-center justify-between rounded-md px-2 py-1.5 hover:bg-accent",
+              tagFolder === "__reminders" && "bg-accent"
+            )}
+          >
+            <span className="flex items-center gap-2">
+              <Clock className="h-4 w-4" /> Recordatorios
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {conversations.filter((c) => (c as { remind_at?: string | null }).remind_at).length || ""}
+            </span>
           </button>
           <div className="flex items-center justify-between px-2 pt-3 text-xs text-muted-foreground">
             <span>Etiquetas</span>

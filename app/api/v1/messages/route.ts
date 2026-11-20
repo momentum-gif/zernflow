@@ -118,9 +118,12 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { conversationId, text } = body;
+  const { conversationId } = body;
+  const text: string = body.text ?? "";
+  const attachmentUrl: string | undefined = body.attachmentUrl || undefined;
+  const attachmentType: string | undefined = body.attachmentType || undefined;
 
-  if (!conversationId || !text) {
+  if (!conversationId || (!text && !attachmentUrl)) {
     return NextResponse.json(
       { error: "conversationId and text required" },
       { status: 400 }
@@ -190,6 +193,7 @@ export async function POST(request: NextRequest) {
       body: {
         accountId: channel.late_account_id,
         message: text,
+        ...(attachmentUrl ? { attachmentUrl, attachmentType: attachmentType || "image" } : {}),
         ...(humanAgent ? { messagingType: "MESSAGE_TAG", messageTag: "HUMAN_AGENT" } : {}),
       } as Parameters<typeof zernio.messages.sendInboxMessage>[0]["body"],
     });
@@ -201,7 +205,7 @@ export async function POST(request: NextRequest) {
       .from("conversations")
       .update({
         last_message_at: new Date().toISOString(),
-        last_message_preview: messagePreview(text),
+        last_message_preview: text ? messagePreview(text) : `[${attachmentType === "audio" ? "Audio" : attachmentType === "file" ? "Archivo" : "Imagen"}]`,
       })
       .eq("id", conversationId);
 
@@ -211,8 +215,8 @@ export async function POST(request: NextRequest) {
         id: messageId ?? `sent-${Date.now()}`,
         conversation_id: conversationId,
         direction: "outbound",
-        text,
-        attachments: null,
+        text: text || null,
+        attachments: attachmentUrl ? [{ type: attachmentType || "image", url: attachmentUrl }] : null,
         quick_reply_payload: null,
         postback_payload: null,
         callback_data: null,
