@@ -107,7 +107,7 @@ export function ContactPanel({
   const [first, ...rest] = (details?.displayName ?? "").trim().split(/\s+/);
 
   return (
-    <div className="flex h-full w-80 shrink-0 flex-col border-l border-border bg-background">
+    <div className="flex h-full w-72 shrink-0 flex-col border-l border-border bg-background">
       <div className="flex h-14 shrink-0 items-center justify-end border-b border-border px-3">
         <button onClick={onClose} aria-label="Contraer barra de usuario" className="rounded-md p-1 text-muted-foreground hover:bg-accent">
           <X className="h-4 w-4" />

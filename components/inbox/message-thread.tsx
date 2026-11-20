@@ -472,7 +472,7 @@ export function MessageThread({
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-300"
+            className="shrink-0 whitespace-nowrap rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-300"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : `Enviar A ${platformName}`}
           </button>
