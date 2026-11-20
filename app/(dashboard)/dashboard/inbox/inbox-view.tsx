@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, RefreshCw, Search, Inbox, Plus, ChevronDown, ArrowUpDown, X, Tag as TagIcon, Clock } from "lucide-react";
+import { MessageSquare, RefreshCw, Search, Inbox, Plus, ChevronDown, ArrowUpDown, X, Tag as TagIcon, Clock, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { ConversationList, type InboxConversation } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactPanel } from "@/components/inbox/contact-panel";
-import { askText } from "@/components/dialogs";
+import { askText, askConfirm } from "@/components/dialogs";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/lib/types/database";
@@ -133,6 +133,33 @@ export function InboxView({
     }
   }
 
+  const [tagMenu, setTagMenu] = useState<string | null>(null);
+
+  async function renameTag(t: InboxTag) {
+    setTagMenu(null);
+    const name = (await askText("Renombrar etiqueta", t.name))?.trim();
+    if (!name || name === t.name) return;
+    const { error } = await createClient().from("tags").update({ name }).eq("id", t.id);
+    if (error) return alert("No se pudo renombrar. ¿Ya existe una etiqueta con ese nombre?");
+    setTags((x) => x.map((y) => (y.id === t.id ? { ...y, name } : y)).sort((a, b) => a.name.localeCompare(b.name)));
+    router.refresh();
+  }
+
+  async function deleteTag(t: InboxTag) {
+    setTagMenu(null);
+    const n = tagCount(t.id);
+    const ok = await askConfirm(
+      `¿Eliminar la etiqueta "${t.name}"?${n ? ` Se va a quitar de ${n} contacto(s).` : ""} No se puede deshacer.`,
+      { destructive: true }
+    );
+    if (!ok) return;
+    const { error } = await createClient().from("tags").delete().eq("id", t.id);
+    if (error) return alert("No se pudo eliminar la etiqueta");
+    setTags((x) => x.filter((y) => y.id !== t.id));
+    if (tagFolder === t.id) setTagFolder(null);
+    router.refresh();
+  }
+
   async function createTag() {
     const name = (await askText("Crear etiqueta"))?.trim();
     if (!name) return;
@@ -248,20 +275,48 @@ export function InboxView({
             </button>
           </div>
           {tags.map((t) => (
-            <button
+            <div
               key={t.id}
-              onClick={() => setTagFolder(t.id)}
-              className={cn(
-                "flex w-full items-center justify-between rounded-md px-2 py-1.5 hover:bg-accent",
-                tagFolder === t.id && "bg-accent"
-              )}
+              className={cn("group relative flex items-center rounded-md hover:bg-accent", tagFolder === t.id && "bg-accent")}
             >
-              <span className="flex min-w-0 items-center gap-2">
-                <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">{t.name}</span>
-              </span>
-              <span className="text-xs text-muted-foreground">{tagCount(t.id)}</span>
-            </button>
+              <button
+                onClick={() => {
+                  // A tag folder lists every chat with that tag, open or closed.
+                  setTagFolder(t.id);
+                  setStatus("all");
+                }}
+                className="flex min-w-0 flex-1 items-center justify-between px-2 py-1.5"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{t.name}</span>
+                </span>
+                <span className="text-xs text-muted-foreground group-hover:hidden">{tagCount(t.id)}</span>
+              </button>
+              <button
+                onClick={() => setTagMenu(tagMenu === t.id ? null : t.id)}
+                aria-label={`Opciones de ${t.name}`}
+                className={cn("mr-1 rounded p-0.5 text-muted-foreground hover:bg-muted", tagMenu === t.id ? "block" : "hidden group-hover:block")}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {tagMenu === t.id && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setTagMenu(null)} />
+                  <div className="absolute left-full top-0 z-50 ml-1 w-40 rounded-lg border border-border bg-card p-1 shadow-lg">
+                    <button onClick={() => renameTag(t)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted">
+                      <Pencil className="h-3.5 w-3.5" /> Renombrar
+                    </button>
+                    <button
+                      onClick={() => deleteTag(t)}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-red-600 hover:bg-muted"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           ))}
         </div>
 
