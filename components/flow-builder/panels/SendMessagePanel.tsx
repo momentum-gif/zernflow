@@ -394,23 +394,22 @@ function MessageEditor({
 
   if (block === "delay") {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
-        <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <GripVertical data-drag-handle className="h-3.5 w-3.5 cursor-grab text-muted-foreground/60 active:cursor-grabbing" />
-          Retraso
-        </span>
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+        <GripVertical data-drag-handle className="h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/60 active:cursor-grabbing" />
+        <span className="shrink-0 text-xs font-semibold text-muted-foreground">Retraso</span>
         <select
           value={String(message.delaySeconds ?? 3)}
           onChange={(e) => onChange({ ...message, delaySeconds: Number(e.target.value) })}
-          className="flex-1 rounded border border-border bg-card px-2 py-1 text-xs"
+          title='Durante la espera, el contacto ve "escribiendo…"'
+          className="h-7 min-w-0 flex-1 truncate rounded border border-border bg-card px-2 text-center text-xs"
         >
           {[1, 2, 3, 5, 8, 10, 15, 20].map((n) => (
             <option key={n} value={n}>
-              Esperar {n} {n === 1 ? "segundo" : "segundos"} (muestra &quot;escribiendo…&quot;)
+              {n} {n === 1 ? "segundo" : "segundos"} · escribiendo…
             </option>
           ))}
         </select>
-        <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-red-500" aria-label="Quitar">
+        <button type="button" onClick={onRemove} className="shrink-0 text-muted-foreground hover:text-red-500" aria-label="Quitar">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
