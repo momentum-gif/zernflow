@@ -114,9 +114,10 @@ gh api repos/momentum-gif/zernflow/commits/$(git rev-parse HEAD)/status --jq '.s
 
 ## Pendiente
 
-- Confirmar que walter quedó con la etiqueta "calificado - ADQ" en Contactos, tras la prueba del 19/11/2026.
-- Corregir textos del flujo: "Ok pero a ver" → minúscula; revisar "constando" → "costando" y "conseguir" → "conseguís".
-- Armar los flujos manuales prearmados: Solución, Llamada, Calendario y 7 seguimientos. **Enrique ya tiene los textos de los seguimientos y los va a pasar.**
+- **Pantalla angosta en el editor:** en la barra de arriba de una automatización, "✓ Guardado" se parte en dos líneas cuando la pantalla es angosta. Dejarlo en una sola línea (y revisar que el resto de la barra no se rompa).
+- **Plegar la barra lateral izquierda** (Flows, Inbox, Contacts…) con un botón, como en ManyChat (allá es la flecha "→|" / "|←" de abajo a la izquierda).
+- Textos de los flujos: los escribe Enrique. Solo avisarle si algo parece un error (por ejemplo "Ok pero a ver" con mayúscula, "constando", "conseguir"); él decide.
+- Flujos manuales prearmados (Solución, Llamada, Calendario y 7 seguimientos): los arma Enrique en ZernFlow. Ayudar solo si lo pide.
 - Audios por dolor o problema frecuente (entre ellos, "referidos").
 - Una apertura por reel.
 - Que Enrique borre en su ManyChat los borradores de prueba "Referencia Claude (borrar)" y "Sin título".
