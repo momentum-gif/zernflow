@@ -71,12 +71,10 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
   const supabase = createClient();
 
-  const initialNodes: Node[] = Array.isArray(flow.nodes)
-    ? (flow.nodes as unknown as Node[])
-    : [];
-  const initialEdges: Edge[] = Array.isArray(flow.edges)
-    ? (flow.edges as unknown as Edge[])
-    : [];
+  const [initialNodes, initialEdges] = withWhenBlock(
+    Array.isArray(flow.nodes) ? (flow.nodes as unknown as Node[]) : [],
+    Array.isArray(flow.edges) ? (flow.edges as unknown as Edge[]) : []
+  );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -207,11 +205,31 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 
   const deleteNode = useCallback(
     (nodeId: string) => {
+      // ManyChat: removing the last trigger leaves the empty "Cuando..." block.
+      const node = nodes.find((n) => n.id === nodeId);
+      if (node?.type === "trigger" && nodes.filter((n) => n.type === "trigger").length === 1) {
+        setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { triggerType: "none" } } : n)));
+        setSelectedNodeId(null);
+        return;
+      }
       setNodes((nds) => nds.filter((n) => n.id !== nodeId));
       setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
       setSelectedNodeId(null);
     },
-    [setNodes, setEdges]
+    [nodes, setNodes, setEdges]
+  );
+
+  // Same with the Delete key: the "Cuando..." block always stays.
+  const onNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      const gone = new Set(deleted.map((n) => n.id));
+      const lastTrigger = deleted.find((n) => n.type === "trigger");
+      if (!lastTrigger || nodes.some((n) => n.type === "trigger" && !gone.has(n.id))) return;
+      const out = edges.find((e) => e.source === lastTrigger.id && !gone.has(e.target));
+      setNodes((nds) => [...nds, { ...lastTrigger, selected: false, data: { triggerType: "none" } }]);
+      if (out) setEdges((eds) => [...eds, out]);
+    },
+    [nodes, edges, setNodes, setEdges]
   );
 
   const saveFlow = useCallback(
@@ -712,6 +730,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             nodesConnectable={!viewMode}
             edgesReconnectable={!viewMode}
             deleteKeyCode={viewMode ? null : ["Backspace", "Delete"]}
+            onNodesDelete={onNodesDelete}
             proOptions={{ hideAttribution: true }}
             className="bg-background"
           >
@@ -747,4 +766,19 @@ export function FlowCanvas({ flow }: FlowCanvasProps) {
       </FlowStatsProvider>
     </ReactFlowProvider>
   );
+}
+
+/** ManyChat always shows the "Cuando..." block; add an empty one if a flow has none. */
+function withWhenBlock(nodes: Node[], edges: Edge[]): [Node[], Edge[]] {
+  if (nodes.some((n) => n.type === "trigger")) return [nodes, edges];
+  const targets = new Set(edges.map((e) => e.target));
+  const steps = nodes.filter((n) => n.type !== "note");
+  const first = steps.find((n) => !targets.has(n.id)) ?? steps[0];
+  const id = `trigger_${first?.id ?? "start"}`;
+  const pos = first ? { x: first.position.x - 380, y: first.position.y } : { x: 0, y: 0 };
+  const trigger: Node = { id, type: "trigger", position: pos, data: { triggerType: "none" } };
+  const edge: Edge[] = first
+    ? [{ id: `e_${id}_${first.id}`, source: id, target: first.id, animated: true, style: { stroke: "var(--border)", strokeWidth: 2 } }]
+    : [];
+  return [[trigger, ...nodes], [...edge, ...edges]];
 }
