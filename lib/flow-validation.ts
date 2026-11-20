@@ -9,12 +9,18 @@ export interface FlowProblem {
   message: string;
 }
 
+import { isTriggerIncomplete } from "./flow-triggers";
+
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 export function validateFlow(nodes: AnyNode[]): FlowProblem | null {
   for (const n of nodes) {
     const d = (n.data ?? {}) as Record<string, any>;
     const problem = (message: string): FlowProblem => ({ nodeId: n.id, message });
+
+    if (n.type === "trigger" && d.triggerType !== "none" && isTriggerIncomplete(d)) {
+      return problem("Por favor, proporciona una palabra clave.");
+    }
 
     if (n.type === "sendMessage") {
       const messages = (Array.isArray(d.messages) ? d.messages : []) as Array<Record<string, any>>;

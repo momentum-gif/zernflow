@@ -414,9 +414,11 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           <span
             className={cn(
               "inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold",
-              flow.status === "published"
-                ? "bg-emerald-100 text-emerald-800"
-                : "bg-muted text-muted-foreground"
+              stopped
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                : flow.status === "published"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-muted text-muted-foreground"
             )}
           >
             {stopped ? "DETENIDA" : flow.status === "published" ? "ACTIVO" : flow.status === "archived" ? "EN PAPELERA" : "BORRADOR"}

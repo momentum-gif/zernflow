@@ -212,6 +212,9 @@ export function TriggerPanel({
               <Plus className="h-4 w-4" />
             </button>
           </div>
+          {triggerType === "keyword" && keywords.length === 0 && (
+            <p className="mt-2 text-xs font-medium text-red-500">Por favor, proporciona una palabra clave.</p>
+          )}
 
           {keywords.length === 0 && (
             <p className="mt-2 text-xs text-muted-foreground">

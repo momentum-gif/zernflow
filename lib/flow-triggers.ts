@@ -78,7 +78,7 @@ export function buildDesiredTriggers(
  */
 export function isFlowStopped(flowNodes: unknown): boolean {
   const triggers = (Array.isArray(flowNodes) ? flowNodes : []).filter(
-    (n: { type?: string; data?: { triggerType?: string } }) => n?.type === "trigger" && n.data?.triggerType !== "none"
+    (n: { type?: string; data?: Record<string, unknown> }) => n?.type === "trigger" && !isTriggerIncomplete(n.data)
   ) as Array<{ data?: { active?: boolean } }>;
   return triggers.length === 0 || triggers.every((n) => n.data?.active === false);
 }
@@ -255,4 +255,24 @@ function nodeTriggers(
 
       return [row];
     });
+}
+
+/**
+ * A trigger that cannot fire: the empty "Cuando..." block, or a keyword trigger
+ * with no keywords (ManyChat refuses to create it: "Por favor, proporciona una
+ * palabra clave.").
+ */
+export function isTriggerIncomplete(data: Record<string, unknown> | undefined): boolean {
+  const d = data ?? {};
+  const type = (d.triggerType as string | undefined) ?? "keyword";
+  if (type === "none") return true;
+  const cfg = (d.config ?? {}) as Record<string, unknown>;
+  const kws = (Array.isArray(d.keywords) ? d.keywords : Array.isArray(cfg.keywords) ? cfg.keywords : []) as Array<
+    string | { value?: string }
+  >;
+  const hasKw = kws.some((k) => (typeof k === "string" ? k : k?.value ?? "").trim() !== "");
+  if (type === "keyword") return !hasKw;
+  if (type === "comment_keyword") return d.anyComment !== true && !hasKw;
+  if (type === "story_reply") return d.anyComment === false && !hasKw;
+  return false;
 }
