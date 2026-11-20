@@ -2011,8 +2011,8 @@ export function realName(name: string | null | undefined, username?: string | nu
 /** The first step of an automation with no trigger: a step nothing points to, top-left first. */
 function firstStep(nodes: FlowNode[], edges: FlowEdge[]): FlowNode | undefined {
   const targets = new Set(edges.map((e) => e.target));
-  const roots = nodes.filter((n) => n.type !== "trigger" && n.type !== "note" && !targets.has(n.id));
-  const pool = roots.length ? roots : nodes.filter((n) => n.type !== "trigger" && n.type !== "note");
-  const pos = (n: FlowNode) => (n as unknown as { position?: { x?: number; y?: number } }).position ?? {};
-  return [...pool].sort((a, b) => (pos(a).x ?? 0) - (pos(b).x ?? 0) || (pos(a).y ?? 0) - (pos(b).y ?? 0))[0];
+  const isStep = (n: FlowNode) => (n.type as string) !== "trigger" && (n.type as string) !== "note";
+  const roots = nodes.filter((n) => isStep(n) && !targets.has(n.id));
+  const pool = roots.length ? roots : nodes.filter(isStep);
+  return [...pool].sort((a, b) => (a.position?.x ?? 0) - (b.position?.x ?? 0) || (a.position?.y ?? 0) - (b.position?.y ?? 0))[0];
 }
