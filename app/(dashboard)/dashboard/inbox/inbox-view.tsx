@@ -112,8 +112,11 @@ export function InboxView({
   useEffect(() => setTags(initialTags), [initialTags]);
 
   const platforms = [...new Set(conversations.map((c) => c.platform))];
+  // Like ManyChat, folder counts follow the status filter (Abrir chats by default).
+  const inStatus = (c: InboxConversation) =>
+    status === "all" ? true : status === "open" ? c.status === "open" : c.status !== "open";
   const tagCount = (tagId: string) =>
-    conversations.filter((c) => c.contacts?.contact_tags?.some((t) => t.tag_id === tagId)).length;
+    conversations.filter((c) => inStatus(c) && c.contacts?.contact_tags?.some((t) => t.tag_id === tagId)).length;
 
   async function handleSyncConversations() {
     setSyncing(true);
@@ -249,7 +252,7 @@ export function InboxView({
             <span className="flex items-center gap-2 whitespace-nowrap">
               <Inbox className="h-4 w-4" /> Todos los chats
             </span>
-            <span className="text-xs text-muted-foreground">{conversations.length}</span>
+            <span className="text-xs text-muted-foreground">{conversations.filter(inStatus).length || ""}</span>
           </button>
           <button
             onClick={() => {
@@ -280,11 +283,7 @@ export function InboxView({
               className={cn("group relative flex items-center rounded-md hover:bg-accent", tagFolder === t.id && "bg-accent")}
             >
               <button
-                onClick={() => {
-                  // A tag folder lists every chat with that tag, open or closed.
-                  setTagFolder(t.id);
-                  setStatus("all");
-                }}
+                onClick={() => setTagFolder(t.id)}
                 className="flex min-w-0 flex-1 items-center justify-between px-2 py-1.5"
               >
                 <span className="flex min-w-0 items-center gap-2">
