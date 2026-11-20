@@ -86,7 +86,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   // Like ManyChat, a published automation opens on its metrics; "Editar" switches to the editor.
-  const [viewMode, setViewMode] = useState(flow.status === "published");
+  const [viewMode, setViewMode] = useState(false);
   const [versionPanelOpen, setVersionPanelOpen] = useState(false);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -362,21 +362,29 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
     }
   }, [saveFlow, flow.id, nodes, edges]);
 
-  // On open: a published automation with no edits after publishing shows "✓ Guardado".
+  // On open: compare with the last published version. If nothing changed, the
+  // button shows "✓ Guardado" and (like ManyChat) the automation opens on its
+  // metrics; with unpublished changes it opens in the editor.
   useEffect(() => {
     if (publishedInit.current) return;
     publishedInit.current = true;
-    const f = flow as unknown as { status?: string; published_at?: string | null; updated_at?: string };
-    if (f.status === "published" && f.published_at && f.updated_at) {
-      if (new Date(f.updated_at).getTime() <= new Date(f.published_at).getTime() + 5000) {
-        setPublishedKey(contentKey(nodes, edges));
-      } else {
-        // Unpublished changes: open the editor, not the published view.
-        setViewMode(false);
-      }
-    } else {
-      setViewMode(false);
-    }
+    if (flow.status !== "published") return;
+    const here = contentKey(nodes, edges);
+    supabase
+      .from("flow_versions")
+      .select("nodes, edges")
+      .eq("flow_id", flow.id)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data: v }) => {
+        const vNodes = (Array.isArray(v?.nodes) ? v!.nodes : []) as unknown as Node[];
+        const vEdges = (Array.isArray(v?.edges) ? v!.edges : []) as unknown as Edge[];
+        if (v && contentKey(vNodes, vEdges) === here) {
+          setPublishedKey(here);
+          setViewMode(true);
+        }
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const upToDate = publishedKey !== null && publishedKey === contentKey(nodes, edges);
