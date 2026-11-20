@@ -39,46 +39,85 @@ export function TriggerPanel({
   onChange,
   flowId,
   nodeId,
-}: TriggerPanelProps & { flowId?: string; nodeId?: string }) {
+  onDeleteNode,
+  onClosePanel,
+}: TriggerPanelProps & {
+  flowId?: string;
+  nodeId?: string;
+  onDeleteNode?: () => void;
+  onClosePanel?: () => void;
+}) {
   const data = rawData as TriggerPanelData;
-  const triggerType = data.triggerType || "keyword";
-  const keywords = data.keywords || [];
+  // ManyChat: "El usuario envía un mensaje" is only created once it has a keyword
+  // ("Cancelar" / "Crear"). Until then the keywords live here, not in the flow.
+  const [draft, setDraft] = useState<Keyword[] | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const triggerType = draft ? "keyword" : data.triggerType || "keyword";
+  const keywords = draft ?? data.keywords ?? [];
   const [newKeyword, setNewKeyword] = useState("");
   const [newMatchType, setNewMatchType] = useState<"exact" | "contains" | "startsWith">("contains");
   // An empty "Cuando..." block opens the trigger list right away, like ManyChat.
   const [pickerOpen, setPickerOpen] = useState(triggerType === "none");
-  const currentOption = findTriggerOption(triggerType);
+  const currentOption = findTriggerOption(data.triggerType || "keyword");
 
   const handleTriggerTypeChange = useCallback(
     (type: string) => {
+      if (type === "keyword" && !(data.triggerType === "keyword" && (data.keywords ?? []).length > 0)) {
+        setDraft([]);
+        return;
+      }
+      setDraft(null);
       // A different trigger starts its own setup from step 1.
-      onChange({ ...data, triggerType: type, wizardDone: false });
+      const { pending: _pending, ...rest } = data;
+      onChange({ ...rest, triggerType: type, wizardDone: false });
     },
     [data, onChange]
   );
 
+  const setKeywords = useCallback(
+    (updated: Keyword[]) => {
+      if (draft) setDraft(updated);
+      else onChange({ ...data, keywords: updated });
+    },
+    [draft, data, onChange]
+  );
+
+  const createDraft = () => {
+    if (!draft || draft.length === 0) {
+      setToast("Por favor, proporciona una palabra clave.");
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
+    const { pending: _pending, ...rest } = data;
+    onChange({ ...rest, triggerType: "keyword", keywords: draft, wizardDone: false });
+    setDraft(null);
+  };
+
+  const cancelDraft = () => {
+    setDraft(null);
+    if (data.pending === true) onDeleteNode?.();
+    else onClosePanel?.();
+  };
+
   const addKeyword = useCallback(() => {
     const trimmed = newKeyword.trim();
     if (!trimmed) return;
-    const updated: Keyword[] = [...keywords, { value: trimmed, matchType: newMatchType }];
-    onChange({ ...data, keywords: updated });
+    setKeywords([...keywords, { value: trimmed, matchType: newMatchType }]);
     setNewKeyword("");
-  }, [data, keywords, newKeyword, newMatchType, onChange]);
+  }, [keywords, newKeyword, newMatchType, setKeywords]);
 
   const removeKeyword = useCallback(
     (index: number) => {
-      const updated = keywords.filter((_, i) => i !== index);
-      onChange({ ...data, keywords: updated });
+      setKeywords(keywords.filter((_, i) => i !== index));
     },
-    [data, keywords, onChange]
+    [keywords, setKeywords]
   );
 
   const updateKeywordMatchType = useCallback(
     (index: number, matchType: "exact" | "contains" | "startsWith") => {
-      const updated = keywords.map((k, i) => (i === index ? { ...k, matchType } : k));
-      onChange({ ...data, keywords: updated });
+      setKeywords(keywords.map((k, i) => (i === index ? { ...k, matchType } : k)));
     },
-    [data, keywords, onChange]
+    [keywords, setKeywords]
   );
 
   const showKeywords = triggerType === "keyword";
@@ -94,9 +133,9 @@ export function TriggerPanel({
           className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 text-left hover:border-emerald-500"
         >
           <span className="min-w-0">
-            <span className="block text-xs text-muted-foreground">{currentOption?.category ?? "Disparador"}</span>
+            <span className="block text-xs text-muted-foreground">{(draft ? findTriggerOption("keyword") : currentOption)?.category ?? "Disparador"}</span>
             <span className="block text-sm font-medium text-foreground">
-              {triggerType === "none" ? "Agrega un disparador" : currentOption?.title ?? triggerType}
+              {triggerType === "none" ? "Agrega un disparador" : (draft ? findTriggerOption("keyword") : currentOption)?.title ?? triggerType}
             </span>
           </span>
           <span className="shrink-0 text-xs font-medium text-emerald-600">{triggerType === "none" ? "Elegir" : "Cambiar"}</span>
@@ -212,8 +251,32 @@ export function TriggerPanel({
               <Plus className="h-4 w-4" />
             </button>
           </div>
-          {triggerType === "keyword" && keywords.length === 0 && (
+          {!draft && triggerType === "keyword" && keywords.length === 0 && (
             <p className="mt-2 text-xs font-medium text-red-500">Por favor, proporciona una palabra clave.</p>
+          )}
+          {draft && (
+            <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+              <button
+                type="button"
+                onClick={cancelDraft}
+                className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-accent"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={createDraft}
+                className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Crear
+              </button>
+            </div>
+          )}
+          {toast && (
+            <div className="fixed bottom-6 right-6 z-[60] flex max-w-xs items-start gap-3 rounded-lg bg-red-700 px-4 py-3 text-sm text-white shadow-xl">
+              <span className="flex-1">{toast}</span>
+              <button type="button" onClick={() => setToast(null)} aria-label="Cerrar">✕</button>
+            </div>
           )}
 
           {keywords.length === 0 && (
@@ -250,6 +313,7 @@ export function TriggerPanel({
         </div>
       )}
       {/* ManyChat: "Activa este disparador" (off = the automation stops answering it). */}
+      {!draft && data.triggerType !== "none" && (
       <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
         <span className="text-sm">Activa este disparador</span>
         <button
@@ -280,6 +344,7 @@ export function TriggerPanel({
           />
         </button>
       </div>
+      )}
     </div>
   );
 }

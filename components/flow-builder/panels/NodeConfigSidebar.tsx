@@ -155,7 +155,17 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
     const data = node.data as Record<string, unknown>;
     switch (nodeType) {
       case "trigger":
-        return <TriggerPanel data={data} onChange={handleChange} flowId={flowId} nodeId={node.id} />;
+        return (
+          <TriggerPanel
+            key={node.id}
+            data={data}
+            onChange={handleChange}
+            flowId={flowId}
+            nodeId={node.id}
+            onDeleteNode={() => onDelete(node.id)}
+            onClosePanel={onClose}
+          />
+        );
       case "sendMessage":
         return (
           <SendMessagePanel

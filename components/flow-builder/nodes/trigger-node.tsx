@@ -48,7 +48,8 @@ export function TriggerNode({ id, data, selected }: NodeProps) {
         id: newId,
         type: "trigger",
         position: { x: self?.position.x ?? 0, y: (self?.position.y ?? 0) + 200 },
-        data: { triggerType: "keyword", keywords: [] },
+        // Not a trigger yet: it becomes one once it is set up (ManyChat "Crear").
+        data: { triggerType: "none", pending: true },
         selected: true,
       },
     ]);

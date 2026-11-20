@@ -184,9 +184,24 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
     []
   );
 
+  // A "+ Nuevo disparador" left without setting up (no "Crear") is discarded.
+  const dropPendingTriggers = useCallback(() => {
+    setNodes((nds) => {
+      const pending = nds.filter(
+        (n) => n.type === "trigger" && (n.data as { pending?: boolean; triggerType?: string }).pending === true &&
+          (n.data as { triggerType?: string }).triggerType === "none"
+      );
+      if (pending.length === 0 || pending.length === nds.filter((n) => n.type === "trigger").length) return nds;
+      const ids = new Set(pending.map((n) => n.id));
+      setEdges((eds) => eds.filter((e) => !ids.has(e.source)));
+      return nds.filter((n) => !ids.has(n.id));
+    });
+  }, [setNodes, setEdges]);
+
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
-  }, []);
+    dropPendingTriggers();
+  }, [dropPendingTriggers]);
 
   const onNodeDataChange = useCallback(
     (nodeId: string, newData: Record<string, unknown>) => {
@@ -201,7 +216,8 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 
   const closeSidebar = useCallback(() => {
     setSelectedNodeId(null);
-  }, []);
+    dropPendingTriggers();
+  }, [dropPendingTriggers]);
 
   const deleteNode = useCallback(
     (nodeId: string) => {
