@@ -71,12 +71,16 @@ export function buildDesiredTriggers(
   );
 }
 
-/** "STOPPED" in ManyChat: published, but every trigger is switched off. */
+/**
+ * "STOPPED" in ManyChat (DETENIDA): published, but nothing can start it on its
+ * own — no trigger configured, or every trigger switched off. It stays
+ * published and can still be sent by hand from the Inbox.
+ */
 export function isFlowStopped(flowNodes: unknown): boolean {
   const triggers = (Array.isArray(flowNodes) ? flowNodes : []).filter(
-    (n: { type?: string }) => n?.type === "trigger"
+    (n: { type?: string; data?: { triggerType?: string } }) => n?.type === "trigger" && n.data?.triggerType !== "none"
   ) as Array<{ data?: { active?: boolean } }>;
-  return triggers.length > 0 && triggers.every((n) => n.data?.active === false);
+  return triggers.length === 0 || triggers.every((n) => n.data?.active === false);
 }
 
 /**

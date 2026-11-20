@@ -27,11 +27,12 @@ import {
   FileText,
   Trash2,
   Search,
+  Workflow,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PlatformIcon } from "@/components/platform-icon";
-import { SendFlowBar } from "./send-flow-menu";
+import { PickAutomationModal } from "./pick-automation-modal";
 import { setContactTag } from "@/lib/actions/contacts";
 import { uploadFile } from "@/components/flow-builder/panels/MediaUpload";
 import { askText, askConfirm } from "@/components/dialogs";
@@ -245,6 +246,7 @@ export function MessageThread({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [menu, setMenu] = useState<"tags" | "assign" | "emoji" | "remind" | "replies" | null>(null);
   const [pickDate, setPickDate] = useState("");
@@ -535,6 +537,25 @@ export function MessageThread({
   return (
     <div className="flex h-full flex-col bg-background">
       <input ref={fileRef} type="file" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+      {pickOpen && (
+        <PickAutomationModal
+          onClose={() => setPickOpen(false)}
+          onPick={async (flow) => {
+            const res = await fetch(`/api/v1/conversations/${conv.id}/send-flow`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ flowId: flow.id }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              alert(body.error || "No se pudo enviar la automatización");
+              return;
+            }
+            setPickOpen(false);
+            await logEvent(`Automatización enviada: ${flow.name}`);
+          }}
+        />
+      )}
 
       {/* Header */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
@@ -826,9 +847,9 @@ export function MessageThread({
               </IconButton>
             )}
             {!isNote && (
-              <div className="[&>div]:mb-0">
-                <SendFlowBar conversationId={conv.id} workspaceId={conv.workspace_id} />
-              </div>
+              <IconButton label="Automatización" onClick={() => setPickOpen(true)}>
+                <Workflow className="h-4 w-4" />
+              </IconButton>
             )}
             <div className="relative">
               <IconButton label="Respuestas predefinidas" onClick={openReplies} active={menu === "replies"}>
