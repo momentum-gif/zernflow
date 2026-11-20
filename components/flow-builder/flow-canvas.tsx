@@ -653,7 +653,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             </button>
           )}
           {viewMode && (
-            <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-1.5 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100">
+            <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-md border border-amber-300 bg-amber-50 px-4 py-1.5 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100">
               Está viendo una versión publicada
               <button
                 onClick={() => {
