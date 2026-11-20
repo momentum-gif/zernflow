@@ -78,7 +78,7 @@ export function buildDesiredTriggers(
  */
 export function isFlowStopped(flowNodes: unknown): boolean {
   const triggers = (Array.isArray(flowNodes) ? flowNodes : []).filter(
-    (n: { type?: string; data?: Record<string, unknown> }) => n?.type === "trigger" && !isTriggerIncomplete(n.data)
+    (n: { type?: string; data?: Record<string, unknown> }) => n?.type === "trigger" && (n.data as { triggerType?: string } | undefined)?.triggerType !== "none"
   ) as Array<{ data?: { active?: boolean } }>;
   return triggers.length === 0 || triggers.every((n) => n.data?.active === false);
 }
