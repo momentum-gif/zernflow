@@ -7,7 +7,9 @@ import { createZernioClient } from "@/lib/zernio-client";
  * Diagnostics: how Zernio has ZernFlow's webhook registered (never the secret)
  * and its latest deliveries, to see why comments/DMs stop arriving.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const limit = Math.min(100, Number(new URL(request.url).searchParams.get("limit")) || 15);
+  const skip = Number(new URL(request.url).searchParams.get("skip")) || 0;
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,7 +35,7 @@ export async function GET() {
 
   let logs: unknown = null;
   try {
-    const l = await zernio.webhooks.getWebhookLogs({ query: { limit: 15 } as never });
+    const l = await zernio.webhooks.getWebhookLogs({ query: { limit, skip } as never });
     logs = ((l?.data as { logs?: Array<Record<string, unknown>> } | undefined)?.logs ?? []).map((x) => {
       const r = { ...x };
       delete r.payload;
