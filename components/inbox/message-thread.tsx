@@ -126,6 +126,7 @@ function MessageBubble({ message, contact }: { message: Message; contact: InboxC
   const isInbound = message.direction === "inbound";
   const isBot = message.sent_by_flow_id !== null;
   const attachments = (Array.isArray(message.attachments) ? message.attachments : []) as Attachment[];
+  const buttons = ((message as unknown as { buttons?: Array<{ title: string; url?: string | null; quick?: boolean }> }).buttons ?? []);
   return (
     <div className={cn("flex items-end gap-2", isInbound ? "justify-start" : "justify-end")}>
       {isInbound && <Avatar url={contact?.avatar_url} name={contact?.display_name} />}
@@ -142,6 +143,33 @@ function MessageBubble({ message, contact }: { message: Message; contact: InboxC
           ))}
           {message.text && <p className="whitespace-pre-wrap">{message.text}</p>}
         </div>
+        {buttons.length > 0 && (
+          <div className="mt-1 space-y-1">
+            {buttons.map((b, i) =>
+              b.url ? (
+                <a
+                  key={i}
+                  href={b.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-xl border border-border bg-card px-4 py-1.5 text-center text-sm font-medium text-blue-600 hover:bg-muted"
+                >
+                  {b.title}
+                </a>
+              ) : (
+                <div
+                  key={i}
+                  className={cn(
+                    "border border-border bg-card px-4 py-1.5 text-center text-sm font-medium",
+                    b.quick ? "rounded-full" : "rounded-xl"
+                  )}
+                >
+                  {b.title}
+                </div>
+              )
+            )}
+          </div>
+        )}
         {!isInbound && (isBot || message.status === "failed" || message.status === "pending") && (
           <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
             {isBot && <Bot className="h-3 w-3" />}

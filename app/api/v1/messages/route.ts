@@ -95,6 +95,15 @@ export async function GET(request: NextRequest) {
       created_at: m.sentAt ?? m.createdAt ?? new Date().toISOString(),
     }));
 
+    // Zernio's history has no buttons. Like ManyChat's Inbox, show the buttons
+    // of messages an automation sent: match them to ZernFlow's own log of sent
+    // messages and read the buttons from that flow's step.
+    try {
+      await attachFlowButtons(supabase, conversationId, messages as unknown as Array<Record<string, unknown>>);
+    } catch (err) {
+      console.error("attachFlowButtons failed:", err);
+    }
+
     return NextResponse.json(messages);
   } catch (error) {
     console.error("Failed to fetch messages from Zernio API:", error);
@@ -278,5 +287,56 @@ async function findZernioConversation(
     return id;
   } catch {
     return null;
+  }
+}
+
+type FlowButton = { title?: string; type?: string; url?: string };
+type FlowMsg = { text?: string; buttons?: FlowButton[]; quickReplies?: FlowButton[] };
+
+const stripVars = (t: string) => t.replace(/\{\{[^}]+\}\}/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+async function attachFlowButtons(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  conversationId: string,
+  messages: Array<Record<string, unknown>>,
+) {
+  const { data: sent } = await supabase
+    .from("messages")
+    .select("text, platform_message_id, sent_by_flow_id")
+    .eq("conversation_id", conversationId)
+    .eq("direction", "outbound")
+    .not("sent_by_flow_id", "is", null)
+    .limit(500);
+  const rows = (sent ?? []) as Array<{ text: string | null; platform_message_id: string | null; sent_by_flow_id: string }>;
+  if (!rows.length) return;
+
+  const flowIds = [...new Set(rows.map((r) => r.sent_by_flow_id))];
+  const { data: flows } = await supabase.from("flows").select("id, nodes").in("id", flowIds);
+  const flowMsgs = new Map<string, FlowMsg[]>();
+  for (const f of (flows ?? []) as Array<{ id: string; nodes: unknown }>) {
+    const list: FlowMsg[] = [];
+    for (const n of (Array.isArray(f.nodes) ? f.nodes : []) as Array<{ data?: { messages?: FlowMsg[] } }>) {
+      for (const m of n.data?.messages ?? []) if (m.buttons?.length || m.quickReplies?.length) list.push(m);
+    }
+    flowMsgs.set(f.id, list);
+  }
+
+  for (const m of messages) {
+    if (m.direction !== "outbound" || typeof m.text !== "string") continue;
+    const local =
+      rows.find((r) => r.platform_message_id && r.platform_message_id === m.platform_message_id) ??
+      rows.find((r) => r.text === m.text);
+    if (!local) continue;
+    const target = stripVars(m.text);
+    const match = (flowMsgs.get(local.sent_by_flow_id) ?? []).find((fm) => {
+      const t = stripVars(fm.text ?? "");
+      return t && (t === target || target.startsWith(t) || t.startsWith(target));
+    });
+    if (!match) continue;
+    m.sent_by_flow_id = local.sent_by_flow_id;
+    m.buttons = [
+      ...(match.buttons ?? []).map((b) => ({ title: b.title ?? "", url: b.type === "url" ? b.url ?? null : null })),
+      ...(match.quickReplies ?? []).map((b) => ({ title: b.title ?? "", quick: true })),
+    ];
   }
 }
