@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appBaseUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import { createZernioClient } from "@/lib/zernio-client";
 import {
@@ -60,12 +61,13 @@ export async function POST(request: NextRequest) {
     // block saving the key or syncing channels.
     try {
       const secret = await getOrCreateWorkspaceWebhookSecret(supabase, workspaceId);
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const appUrl = appBaseUrl(request);
+      if (!appUrl) throw new Error("No public app URL");
       const zernio = createZernioClient(apiKey.trim());
       await ensureWebhookRegistered(zernio, {
         appUrl,
         secret,
-        events: ["message.received", "comment.received"],
+        events: ["message.received", "comment.received", "message.read"],
       });
     } catch (err) {
       console.error("[test-key] webhook auto-registration failed:", err);

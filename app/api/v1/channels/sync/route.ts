@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { appBaseUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import { createZernioClient } from "@/lib/zernio-client";
 import {
@@ -32,7 +33,7 @@ async function getWorkspace(supabase: Awaited<ReturnType<typeof createClient>>) 
  * Creates new channels for accounts not yet in the DB.
  * Deactivates channels whose Zernio accounts no longer exist.
  */
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createClient();
   const workspace = await getWorkspace(supabase);
   if (!workspace)
@@ -137,8 +138,10 @@ export async function POST() {
     // Best-effort: a failure must not block the channel sync.
     try {
       const secret = await getOrCreateWorkspaceWebhookSecret(supabase, workspace.id);
+      const appUrl = appBaseUrl(request);
+      if (!appUrl) throw new Error("No public app URL");
       await ensureWebhookRegistered(zernio, {
-        appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        appUrl,
         secret,
         events: ["message.received", "comment.received", "message.read"],
       });

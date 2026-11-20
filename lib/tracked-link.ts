@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { appBaseUrl } from "@/lib/app-url";
 
 /**
  * Tracked links for link buttons, like ManyChat: the button opens
@@ -29,7 +30,7 @@ function sign(payload: string) {
 }
 
 export function trackedLink(url: string, info: Omit<LinkInfo, "u">): string {
-  const base = (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/+$/, "");
+  const base = appBaseUrl() ?? "";
   if (!base || !secret() || !/^https?:\/\//i.test(url)) return url;
   const payload = Buffer.from(JSON.stringify({ ...info, u: url })).toString("base64url");
   return `${base}/r/${payload}.${sign(payload)}`;

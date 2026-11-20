@@ -79,6 +79,10 @@ export async function ensureWebhookRegistered(
   opts: EnsureWebhookOptions,
 ): Promise<EnsureWebhookResult> {
   const url = webhookUrl(opts.appUrl);
+  // Never point Zernio at a local address: every delivery would fail.
+  if (/\/\/(localhost|127\.0\.0\.1)(:|\/)/.test(url)) {
+    throw new Error(`Refusing to register a local webhook URL (${url})`);
+  }
 
   const res = await zernio.webhooks.getWebhookSettings();
   const webhooks = (res?.data?.webhooks ?? []) as ZernioWebhook[];

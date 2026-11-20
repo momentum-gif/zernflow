@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appBaseUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import { createZernioClient } from "@/lib/zernio-client";
 import { PLATFORMS, isSupportedPlatform } from "@/lib/platforms";
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const profileId = profiles[0]._id!;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const appUrl = appBaseUrl(request) ?? "http://localhost:3000";
     const callbackUrl = `${appUrl}/dashboard/channels/callback`;
 
     // Zernio handles everything: OAuth, page selection, Bluesky credentials, Telegram code
