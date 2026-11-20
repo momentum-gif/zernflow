@@ -99,6 +99,25 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
+      {/* ManyChat's numbers on top of each message block */}
+      {stats && (
+        <div className="mx-3 mt-2 grid grid-cols-4 gap-1 text-center">
+          {(
+            [
+              [String(step?.sent ?? 0), "Enviado"],
+              [`${step?.sent ? Math.round(((step.delivered ?? 0) / step.sent) * 100) : 0}%`, "Entregado"],
+              [`${step?.sent ? Math.round(((step.read ?? 0) / step.sent) * 100) : 0}%`, "Abierto"],
+              [`${step?.ctr ?? 0}%`, "Se le hizo clic"],
+            ] as const
+          ).map(([value, name]) => (
+            <div key={name} className="min-w-0">
+              <p className="text-sm font-semibold text-blue-600">{value}</p>
+              <p className="truncate text-[9px] text-muted-foreground">{name}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-1.5 p-3">
         {messages.length === 0 && !nodeData.question && (
           <div className="rounded-xl border border-dashed border-border px-3 py-3 text-center text-xs text-muted-foreground">
@@ -133,12 +152,12 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
           >
             {c.kind === "url" && <Link2 className="h-3 w-3 text-muted-foreground" />}
             <span className="truncate">{c.title || "Botón sin título"}</span>
-            {c.handle && stats && (step?.sent ?? 0) > 0 && (
+            {stats && (step?.sent ?? 0) > 0 && (
               <span
                 className="ml-1 shrink-0 text-[10px] font-normal text-muted-foreground"
                 title="Personas que tocaron este botón"
               >
-                {stats.buttons[c.handle] ?? 0} clics
+                {stats.buttons[c.handle ?? `url:${c.title}`] ?? 0} clics
               </span>
             )}
             {c.handle && (
@@ -190,9 +209,7 @@ export function SendMessageNode({ id, data, selected }: NodeProps) {
       )}
 
       <div className="relative flex items-center justify-between border-t border-border px-3 py-2">
-        <span className="text-[10px] text-muted-foreground" title="Personas que recibieron este paso · CTR = personas que tocaron un botón ÷ enviados">
-          {stats ? `Enviados ${step?.sent ?? 0}${choices.some((c) => c.handle) ? ` · CTR ${step?.ctr ?? 0}%` : ""}` : ""}
-        </span>
+        <span />
         <span className="text-[10px] text-muted-foreground">Siguiente paso</span>
       </div>
     </div>

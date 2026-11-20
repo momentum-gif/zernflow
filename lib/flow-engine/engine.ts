@@ -24,6 +24,7 @@ import { smartDelayRunAt, type SmartDelayData } from "@/lib/smart-delay";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
 import { requestPublicUrl } from "./request-public-url";
+import { trackedLink } from "@/lib/tracked-link";
 
 export async function executeFlow(
   supabase: SupabaseClient<Database>,
@@ -805,7 +806,22 @@ async function executeSendMessage(
       }
 
       if (adapted.buttons?.length) {
-        body.buttons = adapted.buttons;
+        // Link buttons go through ZernFlow's /r redirect so taps are counted
+        // ("Se le hizo clic"), like ManyChat's tracked links.
+        body.buttons = adapted.buttons.map((b) =>
+          b.type === "url" && b.url
+            ? {
+                ...b,
+                url: trackedLink(b.url, {
+                  f: context.flowId,
+                  n: context.currentNodeId ?? null,
+                  c: context.contactId,
+                  w: context.workspaceId,
+                  h: `url:${b.title ?? ""}`,
+                }),
+              }
+            : b
+        );
       }
       if (adapted.quickReplies?.length) {
         body.quickReplies = adapted.quickReplies;
@@ -829,7 +845,7 @@ async function executeSendMessage(
         text,
         attachments: attachments || null,
         sent_by_flow_id: context.flowId,
-        sent_by_node_id: null,
+        sent_by_node_id: context.currentNodeId ?? null,
         platform_message_id: response.data?.data?.messageId || null,
         status: "sent",
       });
@@ -856,7 +872,10 @@ async function executeSendMessage(
         flow_id: context.flowId,
         contact_id: context.contactId,
         event_type: "message_failed",
-        metadata: { error: error instanceof Error ? error.message : "Unknown error" },
+        metadata: {
+          nodeId: context.currentNodeId ?? null,
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
       });
     }
 

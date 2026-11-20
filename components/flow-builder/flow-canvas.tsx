@@ -43,6 +43,7 @@ import { NoteNode } from "./nodes/note-node";
 import { getDefaultData, getNodeId } from "./flow-node-defaults";
 import { ActionsNode } from "./nodes/actions-node";
 import { FlowStatsProvider } from "./flow-stats-context";
+import { KeyMetricsPanel, StepMetricsPanel } from "./metrics-panels";
 import { PreviewSimulator } from "./preview-simulator";
 import { ConnectDropMenu, type PendingConnection } from "./connect-drop-menu";
 import { validateFlow } from "@/lib/flow-validation";
@@ -84,6 +85,8 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const [publishing, setPublishing] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // Like ManyChat, a published automation opens on its metrics; "Editar" switches to the editor.
+  const [viewMode, setViewMode] = useState(flow.status === "published");
   const [versionPanelOpen, setVersionPanelOpen] = useState(false);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -367,7 +370,12 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
     if (f.status === "published" && f.published_at && f.updated_at) {
       if (new Date(f.updated_at).getTime() <= new Date(f.published_at).getTime() + 5000) {
         setPublishedKey(contentKey(nodes, edges));
+      } else {
+        // Unpublished changes: open the editor, not the published view.
+        setViewMode(false);
       }
+    } else {
+      setViewMode(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -601,7 +609,19 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 
       {/* Canvas area */}
       <div className="flex flex-1 overflow-hidden">
-        {selectedNode && !versionPanelOpen && (
+        {viewMode &&
+          !versionPanelOpen &&
+          (selectedNode ? (
+            <StepMetricsPanel
+              nodeId={selectedNode.id}
+              title={String((selectedNode.data as { label?: string })?.label || (selectedNode.type === "sendMessage" ? "Enviar mensaje" : "Paso"))}
+              isMessage={selectedNode.type === "sendMessage"}
+              onClose={closeSidebar}
+            />
+          ) : (
+            <KeyMetricsPanel flowId={flow.id} />
+          ))}
+        {!viewMode && selectedNode && !versionPanelOpen && (
           <NodeConfigSidebar
             node={selectedNode}
             nodes={nodes}
@@ -613,18 +633,34 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           />
         )}
         <div ref={reactFlowWrapper} className="relative flex-1">
-          {pendingConnection && (
+          {viewMode && (
+            <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-1.5 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100">
+              Está viendo una versión publicada
+              <button
+                onClick={() => {
+                  setViewMode(false);
+                  setSelectedNodeId(null);
+                }}
+                className="font-medium text-blue-600 underline-offset-2 hover:underline"
+              >
+                Editar
+              </button>
+            </div>
+          )}
+          {!viewMode && pendingConnection && (
             <ConnectDropMenu
               pending={pendingConnection}
               onClose={() => setPendingConnection(null)}
               onCreated={(id) => setSelectedNodeId(id)}
             />
           )}
-          <CanvasControls
-            wrapper={reactFlowWrapper}
-            onAdded={(id) => setSelectedNodeId(id)}
-            onArrange={() => setNodes((nds) => arrangeNodes(nds, edges))}
-          />
+          {!viewMode && (
+            <CanvasControls
+              wrapper={reactFlowWrapper}
+              onAdded={(id) => setSelectedNodeId(id)}
+              onArrange={() => setNodes((nds) => arrangeNodes(nds, edges))}
+            />
+          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -651,7 +687,10 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
             fitView
-            deleteKeyCode={["Backspace", "Delete"]}
+            nodesDraggable={!viewMode}
+            nodesConnectable={!viewMode}
+            edgesReconnectable={!viewMode}
+            deleteKeyCode={viewMode ? null : ["Backspace", "Delete"]}
             proOptions={{ hideAttribution: true }}
             className="bg-background"
           >

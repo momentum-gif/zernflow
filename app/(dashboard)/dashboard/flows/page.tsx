@@ -84,7 +84,7 @@ export default async function FlowsPage({
   if (!inTrash) {
     await Promise.all(
       flows.map(async (f) => {
-        const st = await computeFlowStats(supabase, f.id);
+        const st = await computeFlowStats(supabase, f.id, undefined, { light: true });
         stats.set(f.id, { runs: st.runs, ctr: st.ctr });
       }),
     );

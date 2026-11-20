@@ -317,7 +317,7 @@ export function AnalyticsView({
         .map(([fid]) => fid);
       const perfData: FlowPerformance[] = await Promise.all(
         topIds.map(async (fid) => {
-          const st = await computeFlowStats(supabase, fid, range);
+          const st = await computeFlowStats(supabase, fid, range, { light: true });
           return { id: fid, name: String(flowNames.get(fid) ?? "Automatización"), runs: st.runs, sent: st.sent, clicked: st.clicked, ctr: st.ctr };
         }),
       );

@@ -141,6 +141,30 @@ async function handleWebhook(request: NextRequest) {
     parsed = normalized as unknown as { event?: string; id?: string };
   }
 
+  // Instagram "seen" receipts feed the "Abierto" numbers on message steps.
+  if (parsed.event === "message.read") {
+    const accountId = (parsed as { account?: { id?: string } }).account?.id;
+    if (!accountId) return NextResponse.json({ ok: true, skipped: true });
+    const sb = await createServiceClient();
+    const { data: ch } = await sb.from("channels").select("*").eq("late_account_id", accountId).eq("is_active", true).maybeSingle();
+    if (!ch) return NextResponse.json({ ok: true, skipped: true });
+    const readSecret = await resolveWebhookSecret(sb, ch);
+    if (readSecret && !verifyWebhookSignature(readSecret, body, signature)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    if (!(await claimWebhookEvent(sb, eventId))) {
+      return NextResponse.json({ ok: true, skipped: true, reason: "duplicate_event" });
+    }
+    after(async () => {
+      try {
+        await handleReadReceipt(parsed as unknown as ReadReceiptPayload);
+      } catch (err) {
+        console.error("[webhook] read receipt failed:", err);
+      }
+    });
+    return NextResponse.json({ ok: true, queued: true });
+  }
+
   // Everything else besides message.received is acknowledged and ignored
   if (parsed.event !== "message.received") {
     return NextResponse.json({ ok: true, skipped: true });
@@ -624,4 +648,77 @@ function normalizeReferralPayload(raw: Record<string, unknown>): WebhookPayload 
     metadata: { referral } as unknown as WebhookPayload["metadata"],
     timestamp: (raw.timestamp as string) ?? new Date().toISOString(),
   };
+}
+
+interface ReadReceiptPayload {
+  message?: { id?: string; platformMessageId?: string | null; conversationId?: string };
+  conversation?: { id?: string };
+  statusAt?: string;
+}
+
+/**
+ * The contact saw a message: every automation message in that chat up to that
+ * one counts as "Abierto" (Instagram reports the last message seen).
+ */
+async function handleReadReceipt(payload: ReadReceiptPayload) {
+  const supabase = await createServiceClient();
+  const ids = [payload.message?.platformMessageId, payload.message?.id].filter(Boolean) as string[];
+  const lateConv = payload.conversation?.id ?? payload.message?.conversationId;
+
+  let conversationId: string | null = null;
+  let upTo = payload.statusAt ?? new Date().toISOString();
+  if (ids.length) {
+    const { data: m } = await supabase
+      .from("messages")
+      .select("conversation_id, created_at")
+      .in("platform_message_id", ids)
+      .limit(1)
+      .maybeSingle();
+    if (m) {
+      conversationId = m.conversation_id;
+      upTo = m.created_at;
+    }
+  }
+  if (!conversationId && lateConv) {
+    const { data: c } = await supabase.from("conversations").select("id").eq("late_conversation_id", lateConv).maybeSingle();
+    conversationId = c?.id ?? null;
+  }
+  if (!conversationId) return;
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("workspace_id, contact_id")
+    .eq("id", conversationId)
+    .single();
+  if (!conv) return;
+
+  const { data: sent } = await supabase
+    .from("messages")
+    .select("id, sent_by_flow_id, sent_by_node_id, created_at")
+    .eq("conversation_id", conversationId)
+    .eq("direction", "outbound")
+    .not("sent_by_flow_id", "is", null)
+    .not("sent_by_node_id", "is", null)
+    .lte("created_at", upTo)
+    .gte("created_at", new Date(new Date(upTo).getTime() - 7 * 86400000).toISOString());
+  if (!sent?.length) return;
+
+  const { data: already } = await supabase
+    .from("analytics_events")
+    .select("metadata")
+    .eq("contact_id", conv.contact_id)
+    .eq("event_type", "message_read")
+    .gte("created_at", new Date(new Date(upTo).getTime() - 8 * 86400000).toISOString());
+  const seen = new Set(((already ?? []) as Array<{ metadata: { messageId?: string } | null }>).map((e) => e.metadata?.messageId));
+
+  const rows = sent
+    .filter((m) => !seen.has(m.id))
+    .map((m) => ({
+      workspace_id: conv.workspace_id,
+      flow_id: m.sent_by_flow_id,
+      contact_id: conv.contact_id,
+      event_type: "message_read",
+      metadata: { nodeId: m.sent_by_node_id, messageId: m.id },
+    }));
+  if (rows.length) await supabase.from("analytics_events").insert(rows);
 }

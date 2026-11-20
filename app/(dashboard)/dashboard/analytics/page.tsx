@@ -97,7 +97,7 @@ export default async function AnalyticsPage() {
     .map(([fid]) => fid);
   const flowPerformance = await Promise.all(
     topIds.map(async (fid) => {
-      const st = await computeFlowStats(supabase, fid, { start: thirtyDaysAgo, end: now });
+      const st = await computeFlowStats(supabase, fid, { start: thirtyDaysAgo, end: now }, { light: true });
       return { id: fid, name: String(flowNames.get(fid) ?? "Automatización"), runs: st.runs, sent: st.sent, clicked: st.clicked, ctr: st.ctr };
     }),
   );
