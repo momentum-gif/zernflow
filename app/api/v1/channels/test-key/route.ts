@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       await ensureWebhookRegistered(zernio, {
         appUrl,
         secret,
-        events: ["message.received", "comment.received", "message.read"],
+        events: ["message.received", "comment.received", "message.read", "message.deleted"],
       });
     } catch (err) {
       console.error("[test-key] webhook auto-registration failed:", err);

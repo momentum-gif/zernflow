@@ -123,7 +123,15 @@ function AttachmentView({ a }: { a: Attachment }) {
   );
 }
 
-function MessageBubble({ message, contact }: { message: Message; contact: InboxConversation["contacts"] }) {
+function MessageBubble({
+  message,
+  contact,
+  seen,
+}: {
+  message: Message;
+  contact: InboxConversation["contacts"];
+  seen?: boolean;
+}) {
   const isInbound = message.direction === "inbound";
   const isBot = message.sent_by_flow_id !== null;
   const attachments = (Array.isArray(message.attachments) ? message.attachments : []) as Attachment[];
@@ -171,8 +179,9 @@ function MessageBubble({ message, contact }: { message: Message; contact: InboxC
             )}
           </div>
         )}
-        {!isInbound && (isBot || message.status === "failed" || message.status === "pending") && (
+        {!isInbound && (isBot || seen || message.status === "failed" || message.status === "pending") && (
           <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+            {seen && <span>Visto</span>}
             {isBot && <Bot className="h-3 w-3" />}
             {message.status === "failed" && <span className="text-red-600">No se pudo enviar</span>}
             {message.status === "pending" && <span>Enviando…</span>}
@@ -239,6 +248,20 @@ export function MessageThread({
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+  // Instagram read receipt: up to when the contact has seen the chat.
+  const [seenAt, setSeenAt] = useState<string | null>(null);
+  const loadSeen = useCallback(async (id: string) => {
+    try {
+      const r = await fetch(`/api/v1/conversations/${id}/seen`);
+      if (r.ok) setSeenAt(((await r.json()) as { seenAt: string | null }).seenAt);
+    } catch {
+      /* "Visto" is optional */
+    }
+  }, []);
+  useEffect(() => {
+    setSeenAt(null);
+    if (conversation?.id) loadSeen(conversation.id);
+  }, [conversation?.id, loadSeen]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [events, setEvents] = useState<InboxEvent[]>([]);
   const [hideSystem, setHideSystem] = useState(false);
@@ -292,6 +315,13 @@ export function MessageThread({
     ...notes.map((n) => ({ kind: "note" as const, at: n.created_at, note: n })),
     ...(hideSystem ? [] : events.map((e) => ({ kind: "event" as const, at: e.created_at, event: e }))),
   ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  // Like Instagram: "Visto" under your last message once the contact has seen it.
+  const lastOut = [...messages]
+    .filter((m) => m.direction === "outbound" && !m.id.startsWith("optimistic-"))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .pop();
+  const lastSeenId =
+    lastOut && seenAt && new Date(lastOut.created_at).getTime() <= new Date(seenAt).getTime() + 2000 ? lastOut.id : null;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -342,6 +372,7 @@ export function MessageThread({
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "conversations", filter: `id=eq.${conversation.id}` },
         async () => {
+          loadSeen(conversation.id);
           try {
             const res = await fetch(`/api/v1/messages?conversationId=${conversation.id}`);
             if (res.ok) {
@@ -357,7 +388,7 @@ export function MessageThread({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversation?.id]);
+  }, [conversation?.id, loadSeen]);
 
   async function toggleTag(tag: Tag) {
     if (!conversation?.contact_id) return;
@@ -753,7 +784,9 @@ export function MessageThread({
             return (
               <div key={`${it.kind}-${it.kind === "message" ? it.message.id : it.kind === "note" ? it.note.id : it.event.id}`}>
                 {showTime && <p className="my-3 text-center text-[11px] text-muted-foreground">{formatDateSeparator(it.at)}</p>}
-                {it.kind === "message" && <MessageBubble message={it.message} contact={conv.contacts} />}
+                {it.kind === "message" && (
+                  <MessageBubble message={it.message} contact={conv.contacts} seen={it.message.id === lastSeenId} />
+                )}
                 {it.kind === "event" && <p className="text-center text-xs text-muted-foreground">{it.event.text}</p>}
                 {it.kind === "note" && (
                   <div className="flex justify-end">

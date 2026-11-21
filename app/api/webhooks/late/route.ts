@@ -142,7 +142,7 @@ async function handleWebhook(request: NextRequest) {
   }
 
   // Instagram "seen" receipts feed the "Abierto" numbers on message steps.
-  if (parsed.event === "message.read") {
+  if (parsed.event === "message.read" || parsed.event === "message.deleted") {
     const accountId = (parsed as { account?: { id?: string } }).account?.id;
     if (!accountId) return NextResponse.json({ ok: true, skipped: true });
     const sb = await createServiceClient();
@@ -157,9 +157,10 @@ async function handleWebhook(request: NextRequest) {
     }
     after(async () => {
       try {
-        await handleReadReceipt(parsed as unknown as ReadReceiptPayload);
+        if (parsed.event === "message.deleted") await handleMessageDeleted(parsed as unknown as ReadReceiptPayload);
+        else await handleReadReceipt(parsed as unknown as ReadReceiptPayload);
       } catch (err) {
-        console.error("[webhook] read receipt failed:", err);
+        console.error(`[webhook] ${parsed.event} failed:`, err);
       }
     });
     return NextResponse.json({ ok: true, queued: true });
@@ -692,6 +693,16 @@ async function handleReadReceipt(payload: ReadReceiptPayload) {
     .single();
   if (!conv) return;
 
+  // Inbox "Visto": remember up to which message the contact has read, and touch
+  // the conversation so an open thread refreshes.
+  await supabase.from("analytics_events").insert({
+    workspace_id: conv.workspace_id,
+    contact_id: conv.contact_id,
+    event_type: "conversation_seen",
+    metadata: { conversationId, upTo },
+  });
+  await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+
   const { data: sent } = await supabase
     .from("messages")
     .select("id, sent_by_flow_id, sent_by_node_id, created_at")
@@ -721,4 +732,35 @@ async function handleReadReceipt(payload: ReadReceiptPayload) {
       metadata: { nodeId: m.sent_by_node_id, messageId: m.id },
     }));
   if (rows.length) await supabase.from("analytics_events").insert(rows);
+}
+
+/** The contact unsent a message on Instagram: remove it from the Inbox too. */
+async function handleMessageDeleted(payload: ReadReceiptPayload) {
+  const supabase = await createServiceClient();
+  const ids = [payload.message?.platformMessageId, payload.message?.id].filter(Boolean) as string[];
+  if (!ids.length) return;
+  const { data: rows } = await supabase
+    .from("messages")
+    .select("id, conversation_id")
+    .in("platform_message_id", ids);
+  if (!rows?.length) {
+    console.warn("[webhook] message.deleted: message not found", ids);
+    return;
+  }
+  await supabase.from("messages").delete().in("id", rows.map((r) => r.id));
+  const convIds = [...new Set(rows.map((r) => r.conversation_id))];
+  for (const id of convIds) {
+    const { data: last } = await supabase
+      .from("messages")
+      .select("text, created_at")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    await supabase
+      .from("conversations")
+      .update({ last_message_preview: last?.text ?? null, updated_at: new Date().toISOString() })
+      .eq("id", id);
+  }
+  console.log(`[webhook] message.deleted removed ${rows.length}`);
 }
