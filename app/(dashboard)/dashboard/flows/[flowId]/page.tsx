@@ -1,5 +1,6 @@
 import { getWorkspace } from "@/lib/workspace";
 import { notFound } from "next/navigation";
+import { liveFlowIds } from "@/lib/flow-live-status";
 import { FlowCanvas } from "@/components/flow-builder/flow-canvas";
 
 export default async function FlowEditorPage({
@@ -21,9 +22,11 @@ export default async function FlowEditorPage({
     notFound();
   }
 
+  const live = await liveFlowIds(supabase, [flow.id]);
+
   return (
     <div className="flex h-full flex-col">
-      <FlowCanvas flow={flow} />
+      <FlowCanvas flow={flow} liveStopped={!live.has(flow.id)} />
     </div>
   );
 }

@@ -63,9 +63,11 @@ const nodeTypes: NodeTypes = {
 
 interface FlowCanvasProps {
   flow: Flow;
+  /** Published but no active trigger live (ManyChat STOPPED). */
+  liveStopped?: boolean;
 }
 
-function FlowCanvasInner({ flow }: FlowCanvasProps) {
+function FlowCanvasInner({ flow, liveStopped }: FlowCanvasProps) {
   const router = useRouter();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition } = useReactFlow();
@@ -423,7 +425,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const upToDate = publishedKey !== null && publishedKey === contentKey(nodes, edges);
-  const stopped = flow.status === "published" && isFlowStopped(nodes);
+  const stopped = flow.status === "published" && (liveStopped ?? isFlowStopped(nodes));
 
   return (
     <div className="flex h-full flex-col">
@@ -774,11 +776,11 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   );
 }
 
-export function FlowCanvas({ flow }: FlowCanvasProps) {
+export function FlowCanvas({ flow, liveStopped }: FlowCanvasProps) {
   return (
     <ReactFlowProvider>
       <FlowStatsProvider flowId={flow.id}>
-        <FlowCanvasInner flow={flow} />
+        <FlowCanvasInner flow={flow} liveStopped={liveStopped} />
       </FlowStatsProvider>
     </ReactFlowProvider>
   );

@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { CommentTriggerWizard } from "./CommentTriggerWizard";
 import { TriggerPickerModal, findTriggerOption } from "./TriggerPicker";
@@ -47,6 +48,7 @@ export function TriggerPanel({
   onDeleteNode?: () => void;
   onClosePanel?: () => void;
 }) {
+  const router = useRouter();
   const data = rawData as TriggerPanelData;
   // ManyChat: "El usuario envía un mensaje" is only created once it has a keyword
   // ("Cancelar" / "Crear"). Until then the keywords live here, not in the flow.
@@ -328,7 +330,9 @@ export function TriggerPanel({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ nodeId, active: next }),
-              }).catch(() => {});
+              })
+                .then(() => router.refresh())
+                .catch(() => {});
             }
           }}
           className={cn(

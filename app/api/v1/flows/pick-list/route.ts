@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { computeFlowStats } from "@/lib/automation-stats";
-import { isFlowStopped } from "@/lib/flow-triggers";
+import { liveFlowIds } from "@/lib/flow-live-status";
 
 /**
  * GET /api/v1/flows/pick-list
@@ -30,6 +30,10 @@ export async function GET() {
     .neq("status", "archived")
     .order("updated_at", { ascending: false });
 
+  const live = await liveFlowIds(
+    supabase,
+    ((data ?? []) as Array<{ id: string; status: string }>).filter((f) => f.status === "published").map((f) => f.id)
+  );
   const flows = await Promise.all(
     ((data ?? []) as Array<{ id: string; name: string; status: string; nodes: unknown; updated_at: string }>).map(async (f) => {
       const published = f.status === "published";
@@ -40,7 +44,7 @@ export async function GET() {
       return {
         id: f.id,
         name: f.name,
-        status: !published ? "draft" : isFlowStopped(f.nodes) ? "stopped" : "active",
+        status: !published ? "draft" : !live.has(f.id) ? "stopped" : "active",
         updatedAt: f.updated_at,
         runs: st ? st.runs : null,
         ctr: st ? st.ctr : null,

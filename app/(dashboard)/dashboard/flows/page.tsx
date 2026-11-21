@@ -12,7 +12,7 @@ import {
 } from "@/components/automation/automation-list";
 import type { Json } from "@/lib/types/database";
 import { computeFlowStats } from "@/lib/automation-stats";
-import { isFlowStopped } from "@/lib/flow-triggers";
+import { liveFlowIds } from "@/lib/flow-live-status";
 
 const statusBadge: Record<string, { label: string; classes: string }> = {
   published: { label: "ACTIVO", classes: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
@@ -78,6 +78,7 @@ export default async function FlowsPage({
     return (f.folder_id ?? null) === (currentFolder?.id ?? null);
   });
   const trashCount = all.filter((f) => f.status === "archived").length;
+  const live = await liveFlowIds(supabase, flows.filter((f) => f.status === "published").map((f) => f.id));
 
   // "Ejecuciones" and "CTR" per automation (same definitions as the builder and Analytics).
   const stats = new Map<string, { runs: number; ctr: number | null }>();
@@ -195,7 +196,7 @@ export default async function FlowsPage({
 
             {flows.map((flow) => {
               const badge =
-                flow.status === "published" && isFlowStopped(flow.nodes)
+                flow.status === "published" && !live.has(flow.id)
                   ? statusBadge.stopped
                   : statusBadge[flow.status] ?? statusBadge.draft;
               const s = stats.get(flow.id);
