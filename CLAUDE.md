@@ -114,6 +114,9 @@ gh api repos/momentum-gif/zernflow/commits/$(git rev-parse HEAD)/status --jq '.s
 
 ## Pendiente
 
+- **Inbox desactualizado:** si Enrique borra mensajes de una conversación en Instagram, en ZernFlow se siguen viendo. Revisar si Zernio/Instagram avisan cuando se borra un mensaje y reflejarlo igual que ManyChat.
+- **Visto/leído:** en el Inbox de ZernFlow no se ve cuando la persona ya leyó el mensaje. Revisar si Zernio entrega el aviso de "leído" de Instagram y mostrarlo como ManyChat.
+
 - **Pantalla angosta en el editor:** en la barra de arriba de una automatización, "✓ Guardado" se parte en dos líneas cuando la pantalla es angosta. Dejarlo en una sola línea (y revisar que el resto de la barra no se rompa).
 - **Plegar la barra lateral izquierda** (Flows, Inbox, Contacts…) con un botón, como en ManyChat (allá es la flecha "→|" / "|←" de abajo a la izquierda).
 - Textos de los flujos: los escribe Enrique. Solo avisarle si algo parece un error (por ejemplo "Ok pero a ver" con mayúscula, "constando", "conseguir"); él decide.
