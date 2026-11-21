@@ -114,8 +114,7 @@ gh api repos/momentum-gif/zernflow/commits/$(git rev-parse HEAD)/status --jq '.s
 
 ## Pendiente
 
-- **Inbox desactualizado:** si Enrique borra mensajes de una conversación en Instagram, en ZernFlow se siguen viendo. Revisar si Zernio/Instagram avisan cuando se borra un mensaje y reflejarlo igual que ManyChat.
-- **Visto/leído:** en el Inbox de ZernFlow no se ve cuando la persona ya leyó el mensaje. Revisar si Zernio entrega el aviso de "leído" de Instagram y mostrarlo como ManyChat.
+- Hecho (21/11): "Visto" en el Inbox (aviso message.read) y borrado de mensajes que el contacto anula (message.deleted, webhook resincronizado con Sync). Los mensajes que Enrique borra desde su app de Instagram no se pueden sincronizar: Instagram no avisa.
 
 - **Pantalla angosta en el editor:** en la barra de arriba de una automatización, "✓ Guardado" se parte en dos líneas cuando la pantalla es angosta. Dejarlo en una sola línea (y revisar que el resto de la barra no se rompa).
 - **Plegar la barra lateral izquierda** (Flows, Inbox, Contacts…) con un botón, como en ManyChat (allá es la flecha "→|" / "|←" de abajo a la izquierda).
