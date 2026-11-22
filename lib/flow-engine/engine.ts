@@ -670,6 +670,8 @@ async function sendFirstMessageAsPrivateReply(
       direction: "outbound",
       text,
       sent_by_flow_id: context.flowId,
+      // Needed so Instagram "seen" receipts count as "Abierto" on this step.
+      sent_by_node_id: context.currentNodeId ?? null,
       status: "sent",
     });
 
@@ -687,6 +689,7 @@ async function sendFirstMessageAsPrivateReply(
       direction: "outbound",
       text,
       sent_by_flow_id: context.flowId,
+      sent_by_node_id: context.currentNodeId ?? null,
       status: "failed",
     });
     return;
