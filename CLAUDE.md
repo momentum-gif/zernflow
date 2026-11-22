@@ -116,10 +116,11 @@ gh api repos/momentum-gif/zernflow/commits/$(git rev-parse HEAD)/status --jq '.s
 
 - Hecho (21/11): "Visto" en el Inbox (aviso message.read) y borrado de mensajes que el contacto anula (message.deleted, webhook resincronizado con Sync). Los mensajes que Enrique borra desde su app de Instagram no se pueden sincronizar: Instagram no avisa.
 
-- **Pantalla angosta en el editor:** en la barra de arriba de una automatización, "✓ Guardado" se parte en dos líneas cuando la pantalla es angosta. Dejarlo en una sola línea (y revisar que el resto de la barra no se rompa).
 - **Plegar la barra lateral izquierda** (Flows, Inbox, Contacts…) con un botón, como en ManyChat (allá es la flecha "→|" / "|←" de abajo a la izquierda).
 - Textos de los flujos: los escribe Enrique. Solo avisarle si algo parece un error (por ejemplo "Ok pero a ver" con mayúscula, "constando", "conseguir"); él decide.
 - Flujos manuales prearmados (Solución, Llamada, Calendario y 7 seguimientos): los arma Enrique en ZernFlow. Ayudar solo si lo pide.
-- Audios por dolor o problema frecuente (entre ellos, "referidos").
+- Hecho (22/11): Solución – Capacidad armada, otros dolores, audios subidos, IAs Entrenadores republicada.
+- **Gestionar campos personalizados** como ManyChat (Configuración → Campos y "Gestionar campos personalizados" en el perfil): ver, renombrar y eliminar, con confirmación.
+- **Rastreo de contenido en FC- Plantilla** (lo arma Enrique): campos "Primer contenido" y "Último contenido", etiqueta "Reel: [tema]", y no mandar la apertura a quien ya tiene calificado/no calificado.
 - Una apertura por reel.
 - Que Enrique borre en su ManyChat los borradores de prueba "Referencia Claude (borrar)" y "Sin título".
