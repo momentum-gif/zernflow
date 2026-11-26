@@ -1865,6 +1865,18 @@ async function executeAiStep(
   } catch (err) {
     console.error("[ai-step]", err);
     await finish();
+    // Never lose the lead in silence: leave the chat in "Abiertos" for a human
+    // and keep a trace of why the AI did not answer.
+    if (context.conversationId) {
+      await supabase.from("conversations").update({ status: "open" }).eq("id", context.conversationId);
+    }
+    await supabase.from("analytics_events").insert({
+      workspace_id: context.workspaceId,
+      flow_id: context.flowId,
+      contact_id: context.contactId,
+      event_type: "ai_step_failed",
+      metadata: { nodeId, error: String((err as Error)?.message ?? err).slice(0, 500) },
+    });
     return;
   }
 
